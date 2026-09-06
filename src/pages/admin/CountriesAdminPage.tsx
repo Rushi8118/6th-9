@@ -120,13 +120,13 @@ export default function CountriesAdminPage() {
     if (!aiPrompt.trim()) { toast.error('Please enter a country or visa prompt'); return }
     setIsGeneratingAi(true)
     try {
-      const generated = await generateCountryEligibilityWithAi(aiPrompt)
+      const generated = await generateCountryEligibilityWithAi(aiPrompt, undefined, 'Siddhivinayak Overseas is a leading visa consultancy in Surat, Gujarat, India specializing in work and study visa applications for destinations worldwide. We help Indian students and professionals with visa applications, document verification, and immigration guidance.')
       setEditingItem(generated)
       setWorkEligibilityRules(generated.eligibility_criteria)
       setStudyEligibilityRules(generated.eligibility_criteria)
       setIsAiOpen(false)
       setIsEditOpen(true)
-      toast.success(`Generated profile and eligibility for ${generated.name}!`)
+      toast.success(`Generated accurate profile and eligibility for ${generated.name}!`)
     } catch (err: any) {
       toast.error('AI generation failed')
     } finally {
