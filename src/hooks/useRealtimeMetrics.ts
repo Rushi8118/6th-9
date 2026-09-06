@@ -28,71 +28,35 @@ export interface RealtimeEvent {
 export interface RoleCount { role: string; count: number }
 export interface TimePoint { label: string; value: number }
 
-const DEMO_METRICS: RealtimeMetrics = {
-  activeUsers: 47,
-  activeSessions: 62,
-  totalApplications: 234,
-  pendingApplications: 18,
-  totalUsers: 1284,
-  newUsersToday: 12,
-  errorRate: 0.3,
-  avgResponseMs: 142,
-  usersByRole: [
-    { role: 'user', count: 1240 },
-    { role: 'consultant', count: 15 },
-    { role: 'editor', count: 8 },
-    { role: 'manager', count: 4 },
-    { role: 'admin', count: 3 },
-    { role: 'superadmin', count: 1 },
-  ],
-  applicationsOverTime: [
-    { label: 'Mon', value: 32 }, { label: 'Tue', value: 41 }, { label: 'Wed', value: 38 },
-    { label: 'Thu', value: 55 }, { label: 'Fri', value: 47 }, { label: 'Sat', value: 28 },
-    { label: 'Sun', value: 19 },
-  ],
-  recentEvents: [
-    { id: '1', type: 'user_registered', message: 'New user: priya@gmail.com', timestamp: new Date(Date.now() - 10000).toISOString(), severity: 'info' },
-    { id: '2', type: 'application_submitted', message: 'Application #2341 submitted for Japan SSW', timestamp: new Date(Date.now() - 45000).toISOString(), severity: 'info' },
-    { id: '3', type: 'session_started', message: 'Admin session started from Surat HQ', timestamp: new Date(Date.now() - 120000).toISOString(), severity: 'info' },
-    { id: '4', type: 'error', message: 'Failed email notification retry', timestamp: new Date(Date.now() - 300000).toISOString(), severity: 'error' },
-    { id: '5', type: 'user_registered', message: 'New user: ravi@hotmail.com', timestamp: new Date(Date.now() - 600000).toISOString(), severity: 'info' },
-  ],
-  lastUpdated: new Date().toISOString(),
-}
-
-let adminSessionsTableMissing = false
-
 export function useRealtimeMetrics(refreshIntervalMs = 30000) {
-  const [metrics, setMetrics] = useState<RealtimeMetrics>(DEMO_METRICS)
+  const [metrics, setMetrics] = useState<RealtimeMetrics>({
+    activeUsers: 0,
+    activeSessions: 0,
+    totalApplications: 0,
+    pendingApplications: 0,
+    totalUsers: 0,
+    newUsersToday: 0,
+    errorRate: 0,
+    avgResponseMs: 0,
+    recentEvents: [],
+    usersByRole: [],
+    applicationsOverTime: [],
+    lastUpdated: new Date().toISOString(),
+  })
   const [loading, setLoading] = useState(true)
   const [connected, setConnected] = useState(true)
 
   const fetchMetrics = useCallback(async () => {
     try {
-      const [usersRes, appsRes] = await Promise.all([
+      const [usersRes, appsRes, sessionsRes] = await Promise.all([
         supabase.from('user_profiles').select('user_role', { count: 'exact' }),
         supabase.from('applications').select('status', { count: 'exact' }),
+        supabase.from('admin_sessions').select('id', { count: 'exact', head: true }).eq('is_active', true),
       ])
 
-      let activeSessions = 0
-      if (!adminSessionsTableMissing) {
-        const sessionsRes = await supabase
-          .from('admin_sessions')
-          .select('id', { count: 'exact', head: true })
-          .eq('is_active', true)
-        if (
-          sessionsRes.error &&
-          (sessionsRes.error.code === 'PGRST205' ||
-            /Could not find the table/i.test(sessionsRes.error.message))
-        ) {
-          adminSessionsTableMissing = true
-        } else if (!sessionsRes.error) {
-          activeSessions = sessionsRes.count ?? 0
-        }
-      }
-
-      const totalUsers = usersRes.data && usersRes.count ? usersRes.count : DEMO_METRICS.totalUsers
-      const totalApplications = appsRes.data && appsRes.count ? appsRes.count : DEMO_METRICS.totalApplications
+      const totalUsers = usersRes.data && usersRes.count ? usersRes.count : 0
+      const totalApplications = appsRes.data && appsRes.count ? appsRes.count : 0
+      const activeSessions = sessionsRes.error ? 0 : (sessionsRes.count ?? 0)
 
       const roleCounts: Record<string, number> = {}
       if (usersRes.data) {
@@ -100,32 +64,29 @@ export function useRealtimeMetrics(refreshIntervalMs = 30000) {
           if (row.user_role) roleCounts[row.user_role] = (roleCounts[row.user_role] ?? 0) + 1
         }
       }
-      const usersByRole = Object.keys(roleCounts).length > 0
-        ? Object.entries(roleCounts).map(([role, count]) => ({ role, count }))
-        : DEMO_METRICS.usersByRole
+      const usersByRole = Object.entries(roleCounts).map(([role, count]) => ({ role, count }))
 
       const pending = appsRes.data
-        ? appsRes.data.filter(a => a.status === 'pending').length
-        : DEMO_METRICS.pendingApplications
+        ? appsRes.data.filter((a: { status: string }) => a.status === 'pending').length
+        : 0
 
       setMetrics({
-        activeUsers: activeSessions > 0 ? Math.max(1, Math.floor(activeSessions * 0.6)) : DEMO_METRICS.activeUsers,
-        activeSessions: activeSessions > 0 ? activeSessions : DEMO_METRICS.activeSessions,
+        activeUsers: activeSessions > 0 ? Math.max(1, Math.floor(activeSessions * 0.6)) : 0,
+        activeSessions,
         totalApplications,
         pendingApplications: pending,
         totalUsers,
-        newUsersToday: DEMO_METRICS.newUsersToday,
-        errorRate: DEMO_METRICS.errorRate,
-        avgResponseMs: DEMO_METRICS.avgResponseMs,
-        recentEvents: DEMO_METRICS.recentEvents,
+        newUsersToday: 0,
+        errorRate: 0,
+        avgResponseMs: 0,
+        recentEvents: [],
         usersByRole,
-        applicationsOverTime: DEMO_METRICS.applicationsOverTime,
+        applicationsOverTime: [],
         lastUpdated: new Date().toISOString(),
       })
       setConnected(true)
     } catch {
-      setMetrics(DEMO_METRICS)
-      setConnected(true)
+      setConnected(false)
     } finally {
       setLoading(false)
     }
@@ -179,7 +140,7 @@ export function useRealtimeMetrics(refreshIntervalMs = 30000) {
       )
       setConnected(true)
     } catch {
-      setConnected(true)
+      setConnected(false)
     }
 
     return () => {

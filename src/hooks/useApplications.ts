@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase/client'
 import { subscribePostgresChanges } from '@/lib/supabase/realtime'
 import { useAuth } from './use-auth'
+import { isAdminOrAbove } from '@/lib/rbac'
 import { toast } from 'sonner'
 
 export type Application = {
@@ -31,23 +32,27 @@ export type Application = {
 }
 
 export function useApplications() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const queryClient = useQueryClient()
+  const isAdmin = profile ? isAdminOrAbove(profile.user_role) : false
 
   // 1. Query applications list
   const query = useQuery<Application[], Error>({
-    queryKey: ['applications', user?.id],
+    queryKey: ['applications', isAdmin ? 'all' : user?.id],
     queryFn: async () => {
       if (!user) return []
-      const { data, error } = await supabase
+      let q = supabase
         .from('applications')
         .select(`
           *,
           countries(name, flag_emoji),
           visa_programs(name)
         `)
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
+      if (!isAdmin) {
+        q = q.eq('user_id', user.id)
+      }
+      const { data, error } = await q
 
       if (error) throw error
       return data as Application[]
@@ -61,20 +66,23 @@ export function useApplications() {
   useEffect(() => {
     if (!user?.id) return
 
+    const channel = isAdmin ? 'admin-all-apps' : `user-apps-${user.id}`
+    const filter = isAdmin ? undefined : `user_id=eq.${user.id}`
+
     return subscribePostgresChanges(
       supabase,
-      `user-apps-${user.id}`,
+      channel,
       {
         event: '*',
         schema: 'public',
         table: 'applications',
-        filter: `user_id=eq.${user.id}`,
+        ...(filter ? { filter } : {}),
       },
       () => {
-        queryClient.invalidateQueries({ queryKey: ['applications', user.id] })
+        queryClient.invalidateQueries({ queryKey: ['applications'] })
       },
     )
-  }, [user?.id, queryClient])
+  }, [user?.id, queryClient, isAdmin])
 
   // 3. Submit new application mutation
   const createApplicationMutation = useMutation({
@@ -90,7 +98,7 @@ export function useApplications() {
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['applications', user?.id] })
+      queryClient.invalidateQueries({ queryKey: ['applications'] })
       toast.success('Application started successfully!')
     },
     onError: (err: any) => {

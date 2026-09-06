@@ -6,10 +6,16 @@ import {
   LayoutDashboard, Users, Briefcase, FileText, Settings,
   LogOut, Activity, Shield, Zap, Mail, MonitorSmartphone, ShieldAlert,
   ChevronLeft, ChevronRight, Menu, X, FolderOpen, Flame, Globe,
+  Bell, Search, ChevronsLeft, ChevronsRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { AdminErrorBoundary } from "@/components/AdminErrorBoundary";
 import { ROLE_COLORS } from "@/lib/rbac";
+import { ThemeToggle } from "@/components/admin/ThemeToggle";
+import { SearchBar } from "@/components/admin/SearchBar";
 import type { PermissionSlug } from "@/lib/rbac";
 
 type NavItem = {
@@ -23,7 +29,6 @@ type NavItem = {
 type NavGroup = {
   label: string;
   items: NavItem[];
-  requiredPermission?: PermissionSlug;
 };
 
 const ALL_NAV_GROUPS: NavGroup[] = [
@@ -38,7 +43,7 @@ const ALL_NAV_GROUPS: NavGroup[] = [
     label: "Management",
     items: [
       { label: "Users",           path: "/admin/users",        icon: Users, requiredPermission: "users.read" },
-      { label: "Roles & RBAC",   path: "/admin/roles",        icon: Shield, requiredPermission: "roles.read" },
+      { label: "Roles & Permissions", path: "/admin/roles",    icon: Shield, requiredPermission: "roles.read" },
       { label: "Applications",    path: "/admin/applications", icon: Briefcase, requiredPermission: "applications.read" },
       { label: "Urgent Openings", path: "/admin/urgent-requirements", icon: Flame },
       { label: "Countries & Eligibility", path: "/admin/countries", icon: Globe },
@@ -70,7 +75,6 @@ const ALL_NAV_GROUPS: NavGroup[] = [
 
 function useFilteredNavGroups(): NavGroup[] {
   const { can } = usePermissions();
-
   return useMemo(() => {
     return ALL_NAV_GROUPS
       .map(group => ({
@@ -85,6 +89,25 @@ function useFilteredNavGroups(): NavGroup[] {
   }, [can]);
 }
 
+function Breadcrumbs() {
+  const location = useLocation();
+  const path = location.pathname.replace('/admin', '').split('/').filter(Boolean);
+  if (path.length === 0) return null;
+  return (
+    <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
+      <Link to="/admin" className="hover:text-foreground transition-colors">Admin</Link>
+      {path.map((seg, i) => (
+        <span key={i} className="flex items-center gap-1.5">
+          <span>/</span>
+          <span className="text-foreground font-medium capitalize">
+            {seg.replace(/-/g, ' ')}
+          </span>
+        </span>
+      ))}
+    </nav>
+  );
+}
+
 const AdminLayout: React.FC = () => {
   const { isAdmin, canAccessAdmin, isLoading, signOut, profile, user } = useAuth();
   const navigate = useNavigate();
@@ -92,6 +115,7 @@ const AdminLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileWaitExpired, setProfileWaitExpired] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const navGroups = useFilteredNavGroups();
 
   const handleSignOut = async () => {
@@ -99,8 +123,6 @@ const AdminLayout: React.FC = () => {
     navigate("/");
   };
 
-  // Auth marks isLoading=false before profile hydrates — wait briefly for profile
-  // so we never flash Access Denied for a valid admin session.
   useEffect(() => {
     if (!user || profile) {
       setProfileWaitExpired(false);
@@ -125,19 +147,15 @@ const AdminLayout: React.FC = () => {
   if (!isAdmin && !canAccessAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center p-8 bg-card rounded-2xl shadow-lg border border-border max-w-md">
-          <Shield className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-foreground mb-4">Access Denied</h2>
-          <p className="text-muted-foreground mb-6">You don't have permission to access this area.</p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <Button asChild variant="outline">
-              <Link to="/dashboard">Go to dashboard</Link>
-            </Button>
-            <Button asChild>
-              <Link to="/">Go Home</Link>
-            </Button>
+        <Card className="p-8 max-w-md text-center">
+          <Shield className="w-12 h-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
+          <p className="text-sm text-muted-foreground mb-6">You don't have permission to access this area.</p>
+          <div className="flex gap-2 justify-center">
+            <Button variant="outline" asChild><Link to="/dashboard">Dashboard</Link></Button>
+            <Button asChild><Link to="/">Home</Link></Button>
           </div>
-        </div>
+        </Card>
       </div>
     );
   }
@@ -145,44 +163,54 @@ const AdminLayout: React.FC = () => {
   const isActive = (path: string) =>
     path === "/admin" ? location.pathname === "/admin" : location.pathname.startsWith(path);
 
-  const roleSlug = (profile?.user_role ?? "admin") as keyof typeof ROLE_COLORS;
+  const roleSlug = (profile?.user_role ?? 'admin') as keyof typeof ROLE_COLORS;
+
+  const sidebarWidth = collapsed ? 'w-[64px]' : 'w-64';
 
   const SidebarContent = () => (
     <div className="h-full flex flex-col min-h-0">
-      {/* Header */}
-      <div className={`shrink-0 flex items-center gap-3 p-5 border-b border-border ${collapsed ? "justify-center" : ""}`}>
+      {/* Brand */}
+      <div className={`shrink-0 flex items-center gap-3 p-4 border-b border-border ${collapsed ? 'justify-center' : ''}`}>
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary shrink-0">
+          <Shield className="w-5 h-5" />
+        </div>
         {!collapsed && (
-          <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-bold text-foreground truncate">Admin Panel</h1>
-            <p className="text-xs text-muted-foreground truncate">Siddhivinayak Overseas</p>
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold text-foreground truncate">Siddhivinayak Overseas</h1>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Admin Panel</p>
           </div>
         )}
         <button
           onClick={() => setCollapsed(c => !c)}
-          className="hidden lg:flex p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+          className="hidden lg:flex p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground ml-auto"
         >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
         </button>
       </div>
 
-      {/* Profile chip */}
+      {/* Profile */}
       {!collapsed && profile && (
-        <div className="shrink-0 mx-4 mt-4 p-3 bg-muted/50 rounded-xl border border-border">
-          <p className="text-xs font-medium text-foreground truncate">{profile.email}</p>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className={`text-xs px-1.5 py-0.5 rounded-full border capitalize ${ROLE_COLORS[roleSlug] ?? "bg-gray-100 text-gray-700"}`}>
-              {profile.user_role}
-            </span>
+        <div className="shrink-0 mx-3 mt-3 p-3 rounded-xl bg-muted/50 border border-border">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
+              {profile.full_name?.charAt(0) ?? profile.email?.charAt(0) ?? '?'}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-foreground truncate">{profile.email}</p>
+              <Badge variant="secondary" className="mt-0.5 text-[10px] capitalize">
+                {profile.user_role.replace(/_/g, ' ')}
+              </Badge>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Nav - filtered by permissions */}
-      <nav className="flex-1 min-h-0 overflow-y-auto py-4 px-3 space-y-5">
+      {/* Navigation */}
+      <nav className="flex-1 min-h-0 overflow-y-auto py-3 px-2 space-y-1">
         {navGroups.map(group => (
           <div key={group.label}>
             {!collapsed && (
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">
                 {group.label}
               </p>
             )}
@@ -196,14 +224,14 @@ const AdminLayout: React.FC = () => {
                     to={item.path}
                     onClick={() => setMobileOpen(false)}
                     title={collapsed ? item.label : undefined}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                       active
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                    } ${collapsed ? "justify-center" : ""}`}
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    } ${collapsed ? 'justify-center' : ''}`}
                   >
                     <Icon className="w-4 h-4 shrink-0" />
-                    {!collapsed && <span>{item.label}</span>}
+                    {!collapsed && <span className="truncate">{item.label}</span>}
                   </Link>
                 );
               })}
@@ -212,15 +240,15 @@ const AdminLayout: React.FC = () => {
         ))}
       </nav>
 
-      {/* Sign out */}
-      <div className="shrink-0 p-3 border-t border-border">
+      {/* Footer */}
+      <div className="shrink-0 p-2 border-t border-border">
         <button
           onClick={handleSignOut}
-          title={collapsed ? "Sign Out" : undefined}
-          className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors ${collapsed ? "justify-center" : ""}`}
+          title={collapsed ? 'Sign Out' : undefined}
+          className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors ${collapsed ? 'justify-center' : ''}`}
         >
           <LogOut className="w-4 h-4 shrink-0" />
-          {!collapsed && "Sign Out"}
+          {!collapsed && 'Sign Out'}
         </button>
       </div>
     </div>
@@ -230,23 +258,18 @@ const AdminLayout: React.FC = () => {
     <div className="h-screen w-full bg-background flex overflow-hidden">
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex flex-col h-screen bg-card border-r border-border transition-all duration-200 shrink-0 overflow-hidden ${
-          collapsed ? "w-[68px]" : "w-60"
-        }`}
+        className={`hidden lg:flex flex-col h-screen bg-card border-r border-border transition-all duration-200 shrink-0 overflow-hidden ${sidebarWidth}`}
       >
         <SidebarContent />
       </aside>
 
       {/* Mobile sidebar overlay */}
       {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
+        <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
       <aside
         className={`fixed inset-y-0 left-0 z-50 h-screen w-64 bg-card border-r border-border flex flex-col overflow-hidden transition-transform duration-200 lg:hidden ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <SidebarContent />
@@ -254,18 +277,52 @@ const AdminLayout: React.FC = () => {
 
       {/* Main */}
       <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
-        {/* Mobile topbar */}
-        <div className="shrink-0 lg:hidden flex items-center gap-3 px-4 py-3 border-b border-border bg-card">
+        {/* Top bar */}
+        <header className="shrink-0 h-14 border-b border-border bg-card/80 backdrop-blur-lg flex items-center gap-3 px-4 lg:px-6">
+          {/* Mobile menu */}
           <button
-            onClick={() => setMobileOpen(o => !o)}
-            className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+            onClick={() => setMobileOpen(true)}
+            className="lg:hidden p-2 rounded-lg hover:bg-muted text-muted-foreground"
           >
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            <Menu className="w-5 h-5" />
           </button>
-          <span className="font-semibold text-sm text-foreground">Admin Panel</span>
-        </div>
 
-        <main className="flex-1 min-h-0 p-6 lg:p-8 overflow-y-auto">
+          {/* Breadcrumbs */}
+          <div className="hidden md:block flex-1">
+            <Breadcrumbs />
+          </div>
+
+          {/* Global search */}
+          <div className="w-full max-w-sm hidden sm:block">
+            <SearchBar
+              value=""
+              onChange={() => {}}
+              placeholder="Search..."
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" className="h-9 w-9 relative">
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1 right-1 h-2 w-2 bg-destructive rounded-full" />
+            </Button>
+            {profile && (
+              <div className="hidden sm:flex items-center gap-2 ml-1 pl-3 border-l border-border">
+                <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+                  {profile.full_name?.charAt(0) ?? '?'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-foreground truncate">{profile.email}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main className="flex-1 min-h-0 p-4 lg:p-8 overflow-y-auto">
           <AdminErrorBoundary key={location.pathname}>
             <Outlet />
           </AdminErrorBoundary>

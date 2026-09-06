@@ -420,6 +420,18 @@ $$;
 -- UPDATED RLS POLICIES — Role & permission aware
 -- ═══════════════════════════════════════════════════════════
 
+-- Drop all existing policies on tables managed by 021 (idempotent)
+DO $$ DECLARE r RECORD; BEGIN
+  FOR r IN SELECT policyname, tablename FROM pg_policies WHERE schemaname = 'public' AND tablename IN (
+    'user_profiles','roles','permissions','role_permissions','user_roles',
+    'applications','countries','blog_posts',
+    'consultations','notifications'
+  )
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I', r.policyname, r.tablename);
+  END LOOP;
+END $$;
+
 -- Helper function for checking if user has any of the given permission keys
 CREATE OR REPLACE FUNCTION user_has_permission(required_permissions TEXT[])
 RETURNS BOOLEAN
@@ -442,6 +454,8 @@ DROP POLICY IF EXISTS "Users can insert own profile" ON user_profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON user_profiles;
 DROP POLICY IF EXISTS "Admins can read all profiles" ON user_profiles;
 DROP POLICY IF EXISTS "Staff can view profiles" ON user_profiles;
+DROP POLICY IF EXISTS "Staff can view assigned users" ON user_profiles;
+DROP POLICY IF EXISTS "Admins can update user roles" ON user_profiles;
 
 CREATE POLICY "Users can view own profile" ON user_profiles
   FOR SELECT USING (auth.uid() = id);
@@ -464,6 +478,8 @@ CREATE POLICY "Admins can update user roles" ON user_profiles
 
 -- ─── roles RLS ───────────────────────────────────
 DROP POLICY IF EXISTS "Super admins manage roles" ON roles;
+DROP POLICY IF EXISTS "View roles" ON roles;
+DROP POLICY IF EXISTS "Manage roles" ON roles;
 CREATE POLICY "View roles" ON roles FOR SELECT USING (
   user_has_permission(ARRAY['roles.read','permissions.read'])
 );
@@ -473,6 +489,8 @@ CREATE POLICY "Manage roles" ON roles FOR ALL USING (
 
 -- ─── permissions RLS ─────────────────────────────
 DROP POLICY IF EXISTS "Permissions view" ON permissions;
+DROP POLICY IF EXISTS "View permissions" ON permissions;
+DROP POLICY IF EXISTS "Manage permissions" ON permissions;
 CREATE POLICY "View permissions" ON permissions FOR SELECT USING (
   user_has_permission(ARRAY['permissions.read','roles.read'])
 );
@@ -482,6 +500,8 @@ CREATE POLICY "Manage permissions" ON permissions FOR ALL USING (
 
 -- ─── role_permissions RLS ────────────────────────
 DROP POLICY IF EXISTS "Role permissions view" ON role_permissions;
+DROP POLICY IF EXISTS "View role_permissions" ON role_permissions;
+DROP POLICY IF EXISTS "Manage role_permissions" ON role_permissions;
 CREATE POLICY "View role_permissions" ON role_permissions FOR SELECT USING (
   user_has_permission(ARRAY['roles.read','permissions.read'])
 );
@@ -492,6 +512,8 @@ CREATE POLICY "Manage role_permissions" ON role_permissions FOR ALL USING (
 -- ─── user_roles RLS ──────────────────────────────
 DROP POLICY IF EXISTS "User roles view" ON user_roles;
 DROP POLICY IF EXISTS "User roles manage" ON user_roles;
+DROP POLICY IF EXISTS "View user_roles" ON user_roles;
+DROP POLICY IF EXISTS "Manage user_roles" ON user_roles;
 CREATE POLICY "View user_roles" ON user_roles FOR SELECT USING (
   auth.uid() = user_id OR user_has_permission(ARRAY['roles.read','users.read'])
 );
@@ -527,6 +549,7 @@ CREATE POLICY "Users can update own applications" ON applications
 -- ─── countries RLS ───────────────────────────────
 DROP POLICY IF EXISTS "Countries are public" ON countries;
 DROP POLICY IF EXISTS "Admins can write countries" ON countries;
+DROP POLICY IF EXISTS "Staff can write countries" ON countries;
 
 CREATE POLICY "Countries are public" ON countries
   FOR SELECT USING (is_active = true OR user_has_permission(ARRAY['countries.read','countries.update','countries.delete']));
@@ -540,6 +563,7 @@ CREATE POLICY "Staff can update countries" ON countries
 -- ─── blog_posts RLS ──────────────────────────────
 DROP POLICY IF EXISTS "Published blog posts are public" ON blog_posts;
 DROP POLICY IF EXISTS "Staff can write blog posts" ON blog_posts;
+DROP POLICY IF EXISTS "Staff can update blog posts" ON blog_posts;
 
 CREATE POLICY "Published blog posts are public" ON blog_posts
   FOR SELECT USING (
@@ -566,6 +590,9 @@ CREATE POLICY "Staff can update blog posts" ON blog_posts
 DROP POLICY IF EXISTS "Users can view own consultations" ON consultations;
 DROP POLICY IF EXISTS "Users can insert own consultations" ON consultations;
 DROP POLICY IF EXISTS "Users can update own consultations" ON consultations;
+DROP POLICY IF EXISTS "View consultations" ON consultations;
+DROP POLICY IF EXISTS "Insert consultations" ON consultations;
+DROP POLICY IF EXISTS "Update consultations" ON consultations;
 
 CREATE POLICY "View consultations" ON consultations
   FOR SELECT USING (
@@ -589,6 +616,9 @@ CREATE POLICY "Update consultations" ON consultations
 
 -- notifications: staff can view notifications for their customers
 DROP POLICY IF EXISTS "Users can manage own notifications" ON notifications;
+DROP POLICY IF EXISTS "View notifications" ON notifications;
+DROP POLICY IF EXISTS "Insert notifications" ON notifications;
+DROP POLICY IF EXISTS "Update notifications" ON notifications;
 CREATE POLICY "View notifications" ON notifications
   FOR SELECT USING (
     auth.uid() = user_id
@@ -606,6 +636,27 @@ CREATE POLICY "Update notifications" ON notifications
     auth.uid() = user_id
     OR user_has_permission(ARRAY['notifications.manage'])
   );
+
+-- ═══════════════════════════════════════════════════════════
+-- TRIGGER: Prevent modifying/deleting system roles
+-- ═══════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION prevent_system_role_modification()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF OLD.is_system THEN
+    RAISE EXCEPTION 'System roles cannot be modified or deleted';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_system_role_modification ON roles;
+CREATE TRIGGER trg_prevent_system_role_modification
+  BEFORE UPDATE OR DELETE ON roles
+  FOR EACH ROW
+  EXECUTE FUNCTION prevent_system_role_modification();
 
 -- ═══════════════════════════════════════════════════════════
 -- TRIGGER: Sync user_profiles.user_role to user_roles

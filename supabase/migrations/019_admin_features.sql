@@ -8,8 +8,8 @@
 ALTER TABLE user_profiles
   DROP CONSTRAINT IF EXISTS user_profiles_role_check;
 ALTER TABLE user_profiles
-  ADD CONSTRAINT user_profiles_role_check
-  CHECK (user_role IN ('user','viewer','editor','consultant','manager','admin','superadmin'));
+   ADD CONSTRAINT user_profiles_role_check
+    CHECK (user_role IN ('user','viewer','editor','consultant','manager','admin','super_admin','superadmin'));
 
 -- ─── Audit Logs ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS audit_logs (

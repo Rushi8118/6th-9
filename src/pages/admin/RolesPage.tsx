@@ -9,10 +9,15 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { PermissionGuard } from '@/components/auth/PermissionGuard'
 import {
   Check, X, Users, Search, Plus, Save, Edit3, Trash2,
-  Shield, RotateCcw, ChevronDown, ChevronUp, Eye, EyeOff,
+  Shield, RotateCwc, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog'
+import { StatusBadge, roleBadge } from '@/components/admin/StatusBadge'
+import { MetricCard } from '@/components/admin/MetricCard'
+import { Empty } from '@/components/ui/empty'
+import { Loader2 } from 'lucide-react'
 
 type Role = {
   id: string
@@ -50,6 +55,7 @@ export default function RolesPage() {
   const [usersLoading, setUsersLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showUserManager, setShowUserManager] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   const loadRoles = useCallback(async () => {
     try {
@@ -224,17 +230,19 @@ export default function RolesPage() {
     }
   }
 
-  const deleteRole = async (roleId: string) => {
-    if (!confirm('Are you sure you want to delete this role?')) return
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
     try {
-      await supabase.from('role_permissions').delete().eq('role_id', roleId)
-      await supabase.from('user_roles').delete().eq('role_id', roleId)
-      const { error } = await supabase.from('roles').delete().eq('id', roleId)
+      await supabase.from('role_permissions').delete().eq('role_id', deleteTarget)
+      await supabase.from('user_roles').delete().eq('role_id', deleteTarget)
+      const { error } = await supabase.from('roles').delete().eq('id', deleteTarget)
       if (error) throw error
       toast.success('Role deleted')
       await loadRoles()
     } catch {
       toast.error('Failed to delete role')
+    } finally {
+      setDeleteTarget(null)
     }
   }
 
@@ -249,12 +257,18 @@ export default function RolesPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading...</div>
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
+
+  const totalPerms = roles.reduce((sum, r) => sum + (rolePerms[r.id]?.length ?? 0), 0)
+  const totalUsers = Object.keys(userRoles).length
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -275,6 +289,13 @@ export default function RolesPage() {
             </Button>
           </PermissionGuard>
         </div>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <MetricCard title="Total Roles" value={roles.length} sub="configured roles" icon={Shield} accent="blue" />
+        <MetricCard title="Total Permissions" value={totalPerms} sub="across all roles" icon={Check} accent="green" />
+        <MetricCard title="Users with Roles" value={totalUsers} sub="assigned" icon={Users} accent="gold" />
       </div>
 
       {editMode && (
@@ -316,7 +337,6 @@ export default function RolesPage() {
             </div>
           </div>
 
-          {/* Permission Assignment */}
           <div>
             <h3 className="text-sm font-medium text-foreground mb-2">Assign Permissions</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-80 overflow-y-auto">
@@ -357,62 +377,60 @@ export default function RolesPage() {
         </div>
       )}
 
-      {/* Role List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {roles.map(role => {
-          const permCount = rolePerms[role.id]?.length ?? 0
-          const userCount = getRoleUsers(role.id)
-          return (
-            <div key={role.id} className="bg-card border border-border rounded-xl p-5 hover:border-primary/30 transition-colors">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-foreground capitalize">{role.name}</h3>
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">{role.slug}</p>
+      {roles.length === 0 && !editMode ? (
+        <Empty title="No roles found" description="Create a new role to get started." />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {roles.map(role => {
+            const permCount = rolePerms[role.id]?.length ?? 0
+            const userCount = getRoleUsers(role.id)
+            return (
+              <div key={role.id} className="bg-card border border-border rounded-xl p-5 hover:border-primary/30 transition-colors">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h3 className="font-semibold text-foreground capitalize">{role.name}</h3>
+                    <p className="text-xs text-muted-foreground font-mono mt-0.5">{role.slug}</p>
+                  </div>
+                  <StatusBadge
+                    status={role.is_system ? 'system' : 'active'}
+                    variant={role.is_system ? 'destructive' : 'success'}
+                  />
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full border ${ROLE_COLORS[role.slug] ?? ''}`}>
-                  {permCount} perms
-                </span>
+                {role.description && (
+                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{role.description}</p>
+                )}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
+                  <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> {permCount} permissions</span>
+                  <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {userCount} users</span>
+                </div>
+                <div className="flex gap-1">
+                  <PermissionGuard permission="roles.update">
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => startEdit(role)}
+                      disabled={role.is_system}
+                      title={role.is_system ? 'System roles cannot be edited' : 'Edit role'}
+                    >
+                      <Edit3 className="w-3 h-3" />
+                    </Button>
+                  </PermissionGuard>
+                  <PermissionGuard permission="roles.delete">
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => setDeleteTarget(role.id)}
+                      disabled={role.is_system}
+                      className="text-red-500 hover:text-red-600"
+                      title={role.is_system ? 'System roles cannot be deleted' : 'Delete role'}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </PermissionGuard>
+                </div>
               </div>
-              {role.description && (
-                <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{role.description}</p>
-              )}
-              <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-                <span className="flex items-center gap-1">
-                  <Shield className="w-3 h-3" /> {permCount} permissions
-                </span>
-                <span className="flex items-center gap-1">
-                  <Users className="w-3 h-3" /> {userCount} users
-                </span>
-              </div>
-              <div className="flex gap-1">
-                <PermissionGuard permission="roles.update">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => startEdit(role)}
-                    disabled={role.is_system}
-                    title={role.is_system ? 'System roles cannot be edited' : 'Edit role'}
-                  >
-                    <Edit3 className="w-3 h-3" />
-                  </Button>
-                </PermissionGuard>
-                <PermissionGuard permission="roles.delete">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteRole(role.id)}
-                    disabled={role.is_system}
-                    className="text-red-500 hover:text-red-600"
-                    title={role.is_system ? 'System roles cannot be deleted' : 'Delete role'}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </PermissionGuard>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Permission Matrix or User Manager */}
       {showUserManager ? (
@@ -437,7 +455,7 @@ export default function RolesPage() {
               </Button>
             </div>
 
-            {users.length > 0 && (
+            {users.length > 0 ? (
               <div className="space-y-3">
                 {users.map(u => (
                   <div key={u.id} className="p-4 bg-muted/30 rounded-xl border border-border">
@@ -446,9 +464,7 @@ export default function RolesPage() {
                         <p className="text-sm font-medium text-foreground">{u.full_name || u.email}</p>
                         <p className="text-xs text-muted-foreground">{u.email}</p>
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${ROLE_COLORS[u.user_role] ?? ''}`}>
-                        {u.user_role}
-                      </span>
+                      {roleBadge(u.user_role)}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {roles.map(role => {
@@ -471,6 +487,8 @@ export default function RolesPage() {
                   </div>
                 ))}
               </div>
+            ) : (
+              <Empty title="No users found" description="Search for users by email to assign roles." />
             )}
           </div>
         </div>
@@ -551,6 +569,16 @@ export default function RolesPage() {
           </div>
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        title="Delete Role"
+        description="This action cannot be undone. The role and all its permissions will be permanently removed. Users assigned this role will lose it."
+        confirmLabel="Delete Role"
+        open={!!deleteTarget}
+        onConfirm={handleDeleteConfirm}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+      />
     </div>
   )
 }
