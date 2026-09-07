@@ -26,6 +26,16 @@ export type ApplicationVisitRow = {
   created_at: string
 }
 
+export type AppTableRow = {
+  id: string
+  application_id: string | null
+  application_type: string
+  user_id: string
+  status: string
+  created_at: string
+  user_profiles?: { full_name: string | null; email: string } | null
+}
+
 export type LoggedInUserRow = {
   id: string
   email: string
@@ -48,7 +58,7 @@ export type AdminAccessStats = {
   loggedInUsers7d: number
   recentVisits: AccessVisitRow[]
   recentLogins: LoggedInUserRow[]
-  recentApplications: ApplicationVisitRow[]
+  recentApplications: (ApplicationVisitRow | AppTableRow)[]
   topPages: { path: string; views: number }[]
 }
 
@@ -72,7 +82,7 @@ export function useAdminAccessStats() {
       const todayIso = startOfDayIso(0)
       const weekIso = startOfDayIso(6)
 
-      const [todayViewsRes, weekViewsRes, usersRes, recentLoginsRes, recentEventsRes, recentAppsRes] =
+      const [todayViewsRes, weekViewsRes, usersRes, recentLoginsRes, recentEventsRes, recentAppsRes, appsTableRes] =
         await Promise.all([
           supabase
             .from('interactions')
@@ -116,10 +126,16 @@ export function useAdminAccessStats() {
             .eq('event_type', 'application_submitted')
             .order('created_at', { ascending: false })
             .limit(10),
+          supabase
+            .from('applications')
+            .select('*, user_profiles!left(full_name, email)')
+            .order('created_at', { ascending: false })
+            .limit(10),
         ])
 
       if (todayViewsRes.error) throw todayViewsRes.error
       if (weekViewsRes.error) throw weekViewsRes.error
+      if (appsTableRes.error) throw appsTableRes.error
 
       const todayPublic = (todayViewsRes.data || []).filter((r) => isPublicPath(r.page_path))
       const weekPublic = (weekViewsRes.data || []).filter((r) => isPublicPath(r.page_path))
@@ -180,11 +196,16 @@ export function useAdminAccessStats() {
         }
       })
 
-      const recentApplications: ApplicationVisitRow[] = ((recentAppsRes.data || []) as any[]).map(
-        (row) => {
+      const recentApplications: (ApplicationVisitRow | AppTableRow)[] = (() => {
+        const appIds = new Set<string>()
+        const result: (ApplicationVisitRow | AppTableRow)[] = []
+        for (const row of (recentAppsRes.data || []) as any[]) {
           const metadata = row.metadata || {}
+          const appId = metadata?.application_id || row.id
+          if (appIds.has(appId)) continue
+          appIds.add(appId)
           const profile = row.user_id ? profileMap.get(row.user_id) : undefined
-          return {
+          result.push({
             id: row.id,
             event_type: row.event_type,
             application_id: metadata?.application_id || null,
@@ -192,9 +213,26 @@ export function useAdminAccessStats() {
             user_email: profile?.email ?? null,
             user_name: profile?.full_name ?? null,
             created_at: row.created_at,
-          }
-        },
-      )
+          })
+        }
+        for (const row of (appsTableRes.data || []) as any[]) {
+          const appId = row.application_id || row.id
+          if (appIds.has(appId)) continue
+          appIds.add(appId)
+          result.push({
+            id: row.id,
+            event_type: 'app_table_entry',
+            application_id: row.application_id,
+            application_type: row.application_type ?? 'general',
+            user_email: row.user_profiles?.email ?? null,
+            user_name: row.user_profiles?.full_name ?? null,
+            created_at: row.created_at,
+          })
+        }
+        return result.sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        )
+      })()
 
       return {
         visitorsToday: uniqueSessionsToday,
