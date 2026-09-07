@@ -1,146 +1,192 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Flame, Clock, Users, ArrowRight, ChevronRight, ChevronLeft, Sparkles, MapPin } from 'lucide-react'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { Flame, Clock, Users, ArrowRight, ChevronRight, ChevronLeft } from 'lucide-react'
 import { useUrgentRequirements, getRemainingDays } from '@/hooks/useUrgentRequirements'
 import { FlagIcon } from '@/components/flag-icon'
 import { Button } from '@/components/ui/button'
 
-function getFlagEmoji(countryCode: string): string {
-  try {
-    return countryCode
-      .toUpperCase()
-      .replace(/./g, (char) => String.fromCodePoint(127397 + char.charCodeAt(0)))
-  } catch {
-    return '🌍'
-  }
-}
-
 export function UrgentRequirementBanner() {
   const { requirements, isLoading } = useUrgentRequirements()
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const prefersReducedMotion = useReducedMotion()
 
-  // Auto rotate if multiple active requirements
   useEffect(() => {
-    if (requirements.length <= 1) return
+    if (requirements.length <= 1 || paused || prefersReducedMotion) return
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % requirements.length)
-    }, 6000)
+    }, 7000)
     return () => clearInterval(timer)
-  }, [requirements.length])
+  }, [requirements.length, paused, prefersReducedMotion])
 
   if (isLoading || requirements.length === 0) return null
 
   const current = requirements[currentIndex] || requirements[0]
   const remainingDays = getRemainingDays(current.expires_at)
+  const isClosingSoon = remainingDays !== null && remainingDays <= 3
 
   return (
-    <section className="relative z-20 py-4 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      <div className="relative overflow-hidden rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-950/40 via-card/90 to-background/90 p-4 sm:p-5 shadow-[0_0_30px_rgba(201,162,39,0.15)] backdrop-blur-xl transition-all">
-        {/* Animated background ambient glow */}
-        <div className="absolute -top-12 -left-12 h-40 w-40 rounded-full bg-amber-500/15 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-12 -right-12 h-40 w-40 rounded-full bg-red-500/10 blur-3xl pointer-events-none" />
+    <section
+      className="relative z-20 px-4 py-5 sm:px-6 sm:py-6 lg:px-8"
+      aria-label="Urgent job openings"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setPaused(false)
+        }
+      }}
+    >
+      <div className="mx-auto max-w-7xl">
+        <article className="relative overflow-hidden rounded-2xl border border-primary/25 bg-card shadow-[0_12px_32px_-18px_rgba(26,35,64,0.35)]">
+          {/* Brand accent rail */}
+          <div
+            className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-primary via-[#E8B84B] to-primary"
+            aria-hidden="true"
+          />
 
-        <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-          {/* Left badge & details */}
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              {/* Urgency Badge */}
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-bold uppercase tracking-wider animate-pulse">
-                <Flame className="h-3.5 w-3.5 text-red-500 fill-red-500" />
-                Urgent Opening
-              </span>
+          {/* Soft ivory wash + gold tip */}
+          <div
+            className="pointer-events-none absolute inset-0 bg-[linear-gradient(105deg,#FFF8E7_0%,#FCFBF8_42%,#F5F0E8_100%)]"
+            aria-hidden="true"
+          />
+          <div
+            className="pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full bg-primary/10 blur-3xl"
+            aria-hidden="true"
+          />
 
-              {/* Country Badge */}
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background/80 border border-border/70 text-xs font-medium text-foreground">
-                <FlagIcon country={current.country} code={current.country_code} className="text-base rounded-xs border border-border/40" />
-                {current.country}
-              </span>
-
-              {/* Vacancies */}
-              {current.vacancies > 0 && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-semibold text-primary">
-                  <Users className="h-3 w-3" />
-                  {current.vacancies} Vacancies
+          <div className="relative z-10 flex flex-col gap-5 p-4 pl-5 sm:p-5 sm:pl-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8 lg:p-6 lg:pl-7">
+            <div className="min-w-0 flex-1 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#1A2340] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#FFF8E7]">
+                  <Flame className="h-3.5 w-3.5 text-[#E8B84B]" aria-hidden="true" />
+                  Urgent Opening
                 </span>
-              )}
 
-              {/* Remaining Days Countdown */}
-              {remainingDays !== null && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-semibold text-amber-400">
-                  <Clock className="h-3 w-3" />
-                  {remainingDays > 0 ? `${remainingDays} days remaining` : 'Closing today!'}
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#1A2340]/12 bg-white px-2.5 py-1 text-xs font-semibold text-[#1A2340]">
+                  <FlagIcon
+                    country={current.country}
+                    code={current.country_code}
+                    className="text-sm rounded-[2px]"
+                  />
+                  {current.country}
                 </span>
-              )}
+
+                {current.vacancies > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-[#8a6a1a]">
+                    <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                    {current.vacancies} {current.vacancies === 1 ? 'Vacancy' : 'Vacancies'}
+                  </span>
+                )}
+
+                {remainingDays !== null && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                      isClosingSoon
+                        ? 'border-red-700/25 bg-red-50 text-red-800'
+                        : 'border-primary/30 bg-primary/10 text-[#8a6a1a]'
+                    }`}
+                  >
+                    <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                    {remainingDays > 0
+                      ? `${remainingDays} day${remainingDays === 1 ? '' : 's'} remaining`
+                      : 'Closing today'}
+                  </span>
+                )}
+              </div>
+
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={current.id}
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={prefersReducedMotion ? undefined : { opacity: 0, y: -6 }}
+                  transition={{ duration: 0.22 }}
+                >
+                  <Link
+                    to={`/urgent-requirements/${current.slug}`}
+                    className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C49A2B] focus-visible:ring-offset-2"
+                  >
+                    <h3 className="font-serif text-lg font-semibold leading-snug text-[#1A2340] transition-colors group-hover:text-primary sm:text-xl line-clamp-2">
+                      {current.title}
+                    </h3>
+                    {current.summary && (
+                      <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-[#5C6478] line-clamp-2">
+                        {current.summary}
+                      </p>
+                    )}
+                  </Link>
+                </motion.div>
+              </AnimatePresence>
             </div>
 
-            {/* Title */}
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={current.id}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.25 }}
+            <div className="flex w-full shrink-0 flex-col gap-3 border-t border-primary/15 pt-4 sm:w-auto sm:flex-row sm:items-center sm:border-t-0 sm:pt-0">
+              {requirements.length > 1 && (
+                <div
+                  className="flex items-center justify-center gap-1.5 sm:justify-start"
+                  role="group"
+                  aria-label="Browse urgent openings"
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentIndex(
+                        (prev) => (prev - 1 + requirements.length) % requirements.length,
+                      )
+                    }
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#1A2340]/12 bg-white text-[#1A2340] transition hover:border-primary/40 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C49A2B] focus-visible:ring-offset-2"
+                    aria-label="Previous urgent opening"
+                  >
+                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <span className="min-w-[2.75rem] text-center text-xs font-semibold tabular-nums text-[#5C6478]">
+                    <span className="sr-only">Opening </span>
+                    {currentIndex + 1}
+                    <span aria-hidden="true"> / </span>
+                    <span className="sr-only">of </span>
+                    {requirements.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentIndex((prev) => (prev + 1) % requirements.length)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#1A2340]/12 bg-white text-[#1A2340] transition hover:border-primary/40 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C49A2B] focus-visible:ring-offset-2"
+                    aria-label="Next urgent opening"
+                  >
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              )}
+
+              <Button
+                asChild
+                className="h-11 w-full rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground shadow-[0_10px_24px_-12px_rgba(196,154,43,0.7)] hover:bg-primary/90 btn-glow sm:w-auto"
               >
-                <Link
-                  to={`/urgent-requirements/${current.slug}`}
-                  className="group block"
-                >
-                  <h3 className="text-base sm:text-lg font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                    {current.title}
-                  </h3>
-                  {current.summary && (
-                    <p className="mt-1 text-xs sm:text-sm text-muted-foreground line-clamp-1">
-                      {current.summary}
-                    </p>
-                  )}
+                <Link to={`/urgent-requirements/${current.slug}`}>
+                  View Details & Apply
+                  <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
                 </Link>
-              </motion.div>
-            </AnimatePresence>
+              </Button>
+            </div>
           </div>
 
-          {/* Right Action buttons */}
-          <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-border/50 pt-3 sm:pt-0">
-            {/* Pagination if multiple */}
-            {requirements.length > 1 && (
-              <div className="flex items-center gap-1.5 mr-2">
-                <button
-                  type="button"
-                  onClick={() => setCurrentIndex((prev) => (prev - 1 + requirements.length) % requirements.length)}
-                  className="h-7 w-7 rounded-full bg-muted/30 hover:bg-muted/70 flex items-center justify-center text-muted-foreground hover:text-foreground transition"
-                  aria-label="Previous requirement"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <span className="text-[11px] font-mono text-muted-foreground">
-                  {currentIndex + 1}/{requirements.length}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setCurrentIndex((prev) => (prev + 1) % requirements.length)}
-                  className="h-7 w-7 rounded-full bg-muted/30 hover:bg-muted/70 flex items-center justify-center text-muted-foreground hover:text-foreground transition"
-                  aria-label="Next requirement"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-
-            <Button
-              asChild
-              size="sm"
-              className="rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 shadow-lg shadow-primary/20 btn-glow"
-            >
-              <Link to={`/urgent-requirements/${current.slug}`}>
-                View Details & Apply
-                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </div>
-        </div>
+          {requirements.length > 1 && (
+            <div className="relative z-10 flex justify-center gap-1.5 pb-3 sm:hidden" aria-hidden="true">
+              {requirements.map((req, index) => (
+                <span
+                  key={req.id}
+                  className={`h-1.5 rounded-full transition-all ${
+                    index === currentIndex ? 'w-5 bg-primary' : 'w-1.5 bg-[#1A2340]/20'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </article>
       </div>
     </section>
   )
 }
+
 export default UrgentRequirementBanner
