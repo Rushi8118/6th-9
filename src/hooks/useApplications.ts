@@ -115,5 +115,6 @@ export function useApplications() {
     refetch: query.refetch,
     createApplication: createApplicationMutation.mutate,
     createLoading: createApplicationMutation.isPending,
+    createError: createApplicationMutation.error,
   }
 }

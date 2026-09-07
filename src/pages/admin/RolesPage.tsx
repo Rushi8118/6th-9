@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { Fragment, useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import {
   ROLES, PERMISSION_GROUPS, PERMISSION_LABELS, ROLE_COLORS,
@@ -521,7 +521,7 @@ export default function RolesPage() {
                 {PERMISSION_GROUPS.map(group => {
                   const isExpanded = expandedGroups[group.label] ?? false
                   return (
-                    <>
+                    <Fragment key={`group-${group.label}`}>
                       <tr
                         key={`group-${group.label}`}
                         className="bg-muted/20 border-y border-border cursor-pointer hover:bg-muted/40"
@@ -561,7 +561,7 @@ export default function RolesPage() {
                           </tr>
                         )
                       })}
-                    </>
+                    </Fragment>
                   )
                 })}
               </tbody>

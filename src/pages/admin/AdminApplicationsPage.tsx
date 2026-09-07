@@ -377,7 +377,11 @@ export default function AdminApplicationsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
-                    {new Date(row.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium' })}
+                    {new Date(row.created_at).toLocaleString('en-IN', {
+                      timeZone: 'Asia/Kolkata',
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
                   </td>
                 </tr>
               ))}

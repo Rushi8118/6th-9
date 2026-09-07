@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useProfile } from '@/hooks/useProfile'
 import { useAuth } from '@/hooks/use-auth'
 import UserAvatar from '@/components/UserAvatar'
@@ -8,10 +8,7 @@ import {
   MapPin,
   Lock,
   Camera,
-  Trash2,
   AlertTriangle,
-  Mail,
-  Share2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,6 +39,7 @@ export default function ProfilePage() {
 
   // Modal deletion double confirmation
   const [deleteModal, setDeleteModal] = useState(false)
+  const deleteDialogRef = useRef<HTMLDivElement>(null)
 
   // Initialize fields
   useEffect(() => {
@@ -53,6 +51,21 @@ export default function ProfilePage() {
       setCountry(profile.current_country || '')
     }
   }, [profile])
+
+  useEffect(() => {
+    if (!deleteModal) return
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    deleteDialogRef.current?.querySelector<HTMLElement>('button')?.focus()
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setDeleteModal(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      previouslyFocused?.focus()
+    }
+  }, [deleteModal])
 
   if (!user) return null
 
@@ -107,9 +120,10 @@ export default function ProfilePage() {
             />
             <label
               htmlFor="avatar-file-input"
-              className="absolute inset-0 bg-black/40 text-[#F5F0E8] rounded-full flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition duration-200"
+              className="absolute inset-0 bg-black/40 text-[#F5F0E8] rounded-full flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition duration-200"
+              aria-label="Change profile photo"
             >
-              <Camera className="h-5 w-5" />
+              <Camera className="h-5 w-5" aria-hidden="true" />
             </label>
             <input
               type="file"
@@ -120,7 +134,7 @@ export default function ProfilePage() {
               accept="image/*"
             />
             {uploadLoading && (
-              <span className="absolute inset-0 bg-[#1a1a2e]/60 rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none">
+              <span className="absolute inset-0 bg-[#1a1a2e]/60 rounded-full flex items-center justify-center text-xs font-bold text-white leading-none">
                 Updating...
               </span>
             )}
@@ -130,14 +144,14 @@ export default function ProfilePage() {
             <h2 className="font-serif text-lg font-bold text-[#1a1a2e]">
               {profile?.full_name || 'Applicant Credentials'}
             </h2>
-            <p className="text-xs text-muted-foreground">{user.email}</p>
+            <p className="text-xs text-foreground/65">{user.email}</p>
             <div className="flex flex-wrap gap-1.5 justify-center sm:justify-start pt-1.5">
               {isGoogleUser ? (
-                <span className="bg-blue-500/10 text-blue-600 border border-blue-500/20 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                <span className="bg-blue-600/15 text-blue-800 border border-blue-600/30 text-[11px] font-bold px-2.5 py-1 rounded-full">
                   Connected with Google
                 </span>
               ) : (
-                <span className="bg-[#1a1a2e]/5 text-muted-foreground border border-border text-[9px] font-bold px-2 py-0.5 rounded-full">
+                <span className="bg-[#1a1a2e]/5 text-foreground/70 border border-border text-[11px] font-bold px-2.5 py-1 rounded-full">
                   Standard Email Account
                 </span>
               )}
@@ -277,12 +291,12 @@ export default function ProfilePage() {
             <h3 className="font-serif text-base font-bold text-red-600 flex items-center gap-2">
               <AlertTriangle className="h-4.5 w-4.5 shrink-0" /> Danger Zone
             </h3>
-            <p className="text-[11px] text-muted-foreground leading-normal">
+            <p className="text-xs text-foreground/65 leading-normal">
               Permanently close and deactivate your Siddhivinayak applicant records. All documents uploaded to Supabase Storage will be purged.
             </p>
             <Button
               onClick={() => setDeleteModal(true)}
-              className="w-full h-10 bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 rounded-xl text-xs font-bold shadow-sm transition"
+              className="w-full h-11 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-xl text-sm font-bold shadow-sm transition"
             >
               Delete Account Permanently
             </Button>
@@ -290,16 +304,29 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Double confirmation modal overlay */}
       {deleteModal && (
-        <div className="fixed inset-0 bg-[#1a1a2e]/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-card border border-border/60 rounded-3xl p-6 shadow-2xl max-w-sm w-full text-center space-y-4">
-            <div className="p-3 bg-red-100 text-red-600 rounded-full inline-flex items-center justify-center">
+        <div
+          className="fixed inset-0 bg-[#1a1a2e]/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn"
+          role="presentation"
+          onClick={() => setDeleteModal(false)}
+        >
+          <div
+            ref={deleteDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            aria-describedby="delete-dialog-desc"
+            className="bg-card border border-border/60 rounded-3xl p-6 shadow-2xl max-w-sm w-full text-center space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-3 bg-red-100 text-red-700 rounded-full inline-flex items-center justify-center" aria-hidden="true">
               <AlertTriangle className="h-7 w-7" />
             </div>
             <div className="space-y-1.5">
-              <h3 className="font-serif text-lg font-bold text-[#1a1a2e]">Delete Account?</h3>
-              <p className="text-xs text-muted-foreground leading-normal">
+              <h3 id="delete-dialog-title" className="font-serif text-lg font-bold text-[#1a1a2e]">
+                Delete Account?
+              </h3>
+              <p id="delete-dialog-desc" className="text-sm text-foreground/65 leading-normal">
                 This is a destructive action that cannot be undone. You will lose access to all visa progress timelines.
               </p>
             </div>
@@ -307,7 +334,7 @@ export default function ProfilePage() {
               <Button
                 variant="outline"
                 onClick={() => setDeleteModal(false)}
-                className="flex-1 rounded-xl h-10 text-xs font-semibold"
+                className="flex-1 rounded-xl h-11 text-sm font-semibold"
               >
                 No, Keep
               </Button>
@@ -317,7 +344,7 @@ export default function ProfilePage() {
                   setDeleteModal(false)
                 }}
                 disabled={deleteLoading}
-                className="flex-1 rounded-xl h-10 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
+                className="flex-1 rounded-xl h-11 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold"
               >
                 {deleteLoading ? 'Deactivating...' : 'Yes, Delete'}
               </Button>

@@ -92,31 +92,29 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-140px)] min-h-[500px] flex flex-col bg-card border border-border/50 rounded-2xl shadow-sm overflow-hidden">
-      
-      {/* 1. Header with case officer profile info */}
-      <div className="px-5 py-3.5 bg-[#1a1a2e] text-[#F5F0E8] flex items-center justify-between border-b border-[#C49A2B]/10 shrink-0">
-        <div className="flex items-center gap-3">
-          {/* Mock Officer Avatar */}
-          <div className="relative">
+    <div className="h-[calc(100dvh-11.5rem)] md:h-[calc(100dvh-8rem)] min-h-[22rem] max-h-[52rem] flex flex-col bg-card border border-border/50 rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-4 sm:px-5 py-3.5 bg-[#1a1a2e] text-[#F5F0E8] flex items-center justify-between border-b border-[#C49A2B]/10 shrink-0 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="relative shrink-0">
             <UserAvatar fullName="Siddhivinayak Officer" size="sm" className="border border-[#C49A2B]/35" />
-            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 border border-[#1a1a2e]" />
+            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 border border-[#1a1a2e]" aria-hidden="true" />
           </div>
-          <div className="leading-tight">
-            <h3 className="text-xs font-bold font-serif">Siddhivinayak Desk</h3>
-            <p className="text-[9px] text-emerald-400 font-semibold mt-0.5">Online Support</p>
+          <div className="leading-tight min-w-0">
+            <h3 className="text-sm font-bold font-serif truncate">Siddhivinayak Desk</h3>
+            <p className="text-[11px] text-emerald-300 font-semibold mt-0.5">Online Support</p>
           </div>
         </div>
 
-        {/* Search bar inside header */}
-        <div className="relative hidden sm:block w-48">
-          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-[#F5F0E8]/50" />
+        <div className="relative hidden sm:block w-48 shrink-0">
+          <label htmlFor="chat-search" className="sr-only">Search chat messages</label>
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#F5F0E8]/60 pointer-events-none" aria-hidden="true" />
           <input
-            type="text"
+            id="chat-search"
+            type="search"
             placeholder="Search chat..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-7 pl-8 pr-3 text-[10px] rounded-lg border border-[#C49A2B]/20 bg-[#F5F0E8]/10 text-[#F5F0E8] focus:border-[#C49A2B] focus:outline-none"
+            className="w-full h-9 pl-8 pr-3 text-xs rounded-lg border border-[#C49A2B]/20 bg-[#F5F0E8]/10 text-[#F5F0E8] placeholder:text-[#F5F0E8]/55 focus:border-[#C49A2B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C49A2B]"
           />
         </div>
       </div>
@@ -128,9 +126,9 @@ export default function ChatPage() {
       >
         {filtered.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6">
-            <MessageSquare className="h-12 w-12 text-muted-foreground/35 mb-3" />
-            <p className="text-xs text-muted-foreground font-semibold">Start your conversation!</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5 max-w-[200px]">
+            <MessageSquare className="h-12 w-12 text-foreground/25 mb-3" aria-hidden="true" />
+            <p className="text-sm text-foreground/65 font-semibold">Start your conversation!</p>
+            <p className="text-xs text-foreground/55 mt-0.5 max-w-[200px]">
               Ask our consultants about your file reviews or schedules.
             </p>
           </div>
@@ -165,28 +163,25 @@ export default function ChatPage() {
                       }`}
                     >
                       <FileText className="h-4 w-4 shrink-0" />
-                      <span className="text-[10px] font-bold underline truncate max-w-[120px]">
+                      <span className="text-[11px] font-bold underline truncate max-w-[120px]">
                         {msg.file_name || 'Attachment'}
                       </span>
                     </a>
                   )}
 
-                  {/* Message Metadata footer */}
-                  <div className="flex items-center gap-1.5 self-end text-[8px] text-muted-foreground">
-                    <span>
+                  <div className={`flex items-center gap-1.5 self-end text-[11px] ${isMe ? 'text-[#F5F0E8]/70' : 'text-foreground/55'}`}>
+                    <time dateTime={msg.created_at}>
                       {new Date(msg.created_at).toLocaleTimeString(undefined, {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
-                    </span>
-                    
-                    {/* Double Check receipts */}
+                    </time>
                     {isMe && (
-                      <span className="shrink-0">
+                      <span className="shrink-0" aria-label={msg.is_read ? 'Read' : 'Sent'}>
                         {msg.is_read ? (
-                          <CheckCheck className="h-3.5 w-3.5 text-[#C49A2B]" />
+                          <CheckCheck className="h-3.5 w-3.5 text-[#E8C56A]" aria-hidden="true" />
                         ) : (
-                          <Check className="h-3.5 w-3.5 text-muted-foreground" />
+                          <Check className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
                         )}
                       </span>
                     )}
@@ -200,8 +195,8 @@ export default function ChatPage() {
         {/* Case officer typing indicator bubble */}
         {officerTyping && (
           <div className="flex w-full justify-start animate-pulse">
-            <div className="bg-card text-muted-foreground border border-border/50 rounded-2xl rounded-tl-none p-3 text-[10px] font-semibold italic flex items-center gap-2">
-              <span className="h-1.5 w-1.5 bg-[#C49A2B] rounded-full animate-bounce" />
+            <div className="bg-card text-foreground/65 border border-border/50 rounded-2xl rounded-tl-none p-3 text-xs font-semibold italic flex items-center gap-2" aria-live="polite">
+              <span className="h-1.5 w-1.5 bg-[#C49A2B] rounded-full animate-bounce" aria-hidden="true" />
               <span>Officer is typing...</span>
             </div>
           </div>
@@ -223,27 +218,27 @@ export default function ChatPage() {
 
         {/* Selected file notification banner preview */}
         {selectedFile && (
-          <div className="absolute left-4 bottom-full mb-2 bg-[#1a1a2e] text-[#F5F0E8] border border-[#C49A2B]/30 px-3 py-1.5 rounded-lg text-[10px] flex items-center gap-2 shadow-lg animate-slideUp">
-            <Paperclip className="h-3.5 w-3.5 text-[#C49A2B]" />
+          <div className="absolute left-4 bottom-full mb-2 bg-[#1a1a2e] text-[#F5F0E8] border border-[#C49A2B]/30 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 shadow-lg animate-slideUp">
+            <Paperclip className="h-3.5 w-3.5 text-[#E8C56A]" aria-hidden="true" />
             <span className="font-bold truncate max-w-[140px]">{selectedFile.name}</span>
             <button
               type="button"
               onClick={() => setSelectedFile(null)}
-              className="text-red-400 hover:text-red-300 font-bold ml-1"
+              className="text-red-300 hover:text-red-200 font-bold ml-1 min-h-8 min-w-8 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C49A2B]"
+              aria-label="Remove attachment"
             >
               ✕
             </button>
           </div>
         )}
 
-        {/* Paperclip attachment clip */}
         <button
           type="button"
           onClick={handleAttachmentClick}
-          className="p-2.5 text-muted-foreground hover:text-[#C49A2B] bg-card border border-border/60 rounded-xl transition duration-200"
+          className="p-2.5 min-h-10 min-w-10 text-foreground/60 hover:text-[#8B6914] bg-card border border-border/60 rounded-xl transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C49A2B] focus-visible:ring-offset-2"
           aria-label="Add Attachment"
         >
-          <Paperclip className="h-4.5 w-4.5" />
+          <Paperclip className="h-4.5 w-4.5" aria-hidden="true" />
         </button>
 
         {/* Message Input text field */}

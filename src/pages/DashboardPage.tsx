@@ -22,7 +22,12 @@ import {
   FileText,
   MapPin,
   TrendingUp,
-  Bookmark
+  Bookmark,
+  ShieldCheck,
+  RefreshCw,
+  Target,
+  AlertTriangle,
+  ArrowRight
 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { supabase } from "@/lib/supabase/client"
@@ -43,6 +48,12 @@ import {
 } from "@/components/ui/select"
 import { toast } from "sonner"
 import { PhoneInputField } from "@/components/ui/phone-input-field"
+import { UserAvatar } from "@/components/user-avatar"
+import { StatusBadge } from "@/components/admin/status-badge"
+import { useApplications } from "@/hooks/use-applications"
+import { useDocuments } from "@/hooks/use-documents"
+import { useAppointments } from "@/hooks/use-appointments"
+import { useChat } from "@/hooks/use-chat"
 
 type Application = {
   id: string
@@ -77,8 +88,18 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<"overview" | "applications" | "consultations" | "profile">("overview")
   
+  // Dashboard hooks
+  const { applications, isLoading: appsLoading, refetch: refetchApps } = useApplications()
+  const { documents, isLoading: docsLoading } = useDocuments()
+  const { appointments, isLoading: apptsLoading } = useAppointments()
+  const { messages, isLoading: chatLoading } = useChat()
+  
+  // Dashboard state
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState("all")
+  const [selectedCountryFilter, setSelectedCountryFilter] = useState("all")
+  
   // Data states
-  const [applications, setApplications] = useState<Application[]>([])
   const [consultations, setConsultations] = useState<Consultation[]>([])
   const [countries, setCountries] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
@@ -156,7 +177,6 @@ export default function DashboardPage() {
         .eq("is_active", true)
         .order("sort_order", { ascending: true })
 
-      setApplications(appsData as any[] || [])
       setConsultations(consData as any[] || [])
       setCountries(countriesData || [])
     } catch (err: any) {
@@ -395,100 +415,273 @@ export default function DashboardPage() {
                       transition={{ duration: 0.3 }}
                       className="space-y-6"
                     >
-                      {/* Dashboard Quick Stats */}
-                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                        <div className="rounded-2xl border border-border/60 bg-card/50 p-5">
-                          <Briefcase className="h-8 w-8 text-primary mb-3" />
-                          <h3 className="text-2xl font-bold text-foreground">{applications.length}</h3>
-                          <p className="text-xs text-muted-foreground">Applications</p>
+                      {/* Welcome Header */}
+                      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] text-white p-6 md:p-8 border border-white/10 shadow-xl">
+                        <div className="absolute right-0 bottom-0 top-0 opacity-10 pointer-events-none translate-x-12 translate-y-12">
+                          <ShieldCheck className="h-64 w-64 text-[#C49A2B]" />
                         </div>
-                        <div className="rounded-2xl border border-border/60 bg-card/50 p-5">
-                          <Calendar className="h-8 w-8 text-primary mb-3" />
-                          <h3 className="text-2xl font-bold text-foreground">{consultations.length}</h3>
-                          <p className="text-xs text-muted-foreground">Consultations</p>
-                        </div>
-                        <div className="col-span-2 sm:col-span-1 rounded-2xl border border-border/60 bg-card/50 p-5">
-                          <TrendingUp className="h-8 w-8 text-primary mb-3" />
-                          <h3 className="text-2xl font-bold text-foreground">
-                            {applications.filter(a => a.status === "approved").length > 0 ? "Approved" : "In Progress"}
-                          </h3>
-                          <p className="text-xs text-muted-foreground">Pathway Status</p>
+                        <div className="relative z-10 flex flex-col md:flex-row items-center gap-5 justify-between">
+                          <div className="flex items-center gap-4">
+                            <UserAvatar
+                              imageUrl={profile?.profile_photo_url}
+                              fullName={profile?.full_name || user.email}
+                              size="lg"
+                              className="border-2 border-[#C49A2B]/45"
+                            />
+                            <div className="space-y-1 leading-tight">
+                              <h2 className="font-serif text-xl md:text-2xl font-bold">
+                                Welcome back, {profile?.full_name || "Applicant"}! 👋
+                              </h2>
+                              <p className="text-xs text-white/60">
+                                Manage and track your global visa pathways securely under MEA guidance.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="bg-[#C49A2B]/15 border border-[#C49A2B]/20 rounded-full px-4.5 py-1.5 text-xs font-semibold text-[#C49A2B] text-center">
+                              {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+                            </div>
+                            <Button variant="outline" size="sm" onClick={() => void refetchApps()} className="border-white/20 text-white hover:bg-white/10">
+                              <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh
+                            </Button>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Recent Applications Card */}
+                      {/* KPI Status Cards */}
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                        {[
+                          { label: "Total", value: applications.length, color: "text-primary", bg: "bg-primary/10" },
+                          { label: "Draft", value: applications.filter(a => a.status === "draft").length, color: "text-amber-500", bg: "bg-amber-500/10" },
+                          { label: "Submitted", value: applications.filter(a => a.status === "submitted").length, color: "text-blue-500", bg: "bg-blue-500/10" },
+                          { label: "Under Review", value: applications.filter(a => a.status === "under_review").length, color: "text-[#C49A2B]", bg: "bg-[#C49A2B]/10" },
+                          { label: "Approved", value: applications.filter(a => a.status === "approved").length, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+                          { label: "Rejected", value: applications.filter(a => a.status === "rejected").length, color: "text-destructive", bg: "bg-destructive/10" },
+                        ].map((card) => (
+                          <div key={card.label} className="rounded-xl border border-border/50 bg-card p-4 text-center hover:border-primary/20 transition">
+                            <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg ${card.bg} ${card.color} mb-2`}>
+                              <Briefcase className="w-4 h-4" />
+                            </span>
+                            <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{card.label}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Quick Actions */}
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <Button variant="outline" className="h-auto flex-col items-center justify-center rounded-xl border-border/50 bg-card p-4 gap-2 hover:border-primary/20" onClick={() => navigate("/dashboard/applications")}>
+                          <Briefcase className="w-5 h-5 text-primary" />
+                          <span className="text-xs font-semibold">My Applications</span>
+                        </Button>
+                        <Button variant="outline" className="h-auto flex-col items-center justify-center rounded-xl border-border/50 bg-card p-4 gap-2 hover:border-amber-500/20" onClick={() => navigate("/dashboard/documents")}>
+                          <FileText className="w-5 h-5 text-amber-500" />
+                          <span className="text-xs font-semibold">Documents</span>
+                        </Button>
+                        <Button variant="outline" className="h-auto flex-col items-center justify-center rounded-xl border-border/50 bg-card p-4 gap-2 hover:border-emerald-500/20" onClick={() => navigate("/dashboard/appointments")}>
+                          <Calendar className="w-5 h-5 text-emerald-500" />
+                          <span className="text-xs font-semibold">Appointments</span>
+                        </Button>
+                        <Button variant="outline" className="h-auto flex-col items-center justify-center rounded-xl border-border/50 bg-card p-4 gap-2 hover:border-[#C49A2B]/20" onClick={() => navigate("/dashboard/chat")}>
+                          <MessageCircle className="w-5 h-5 text-[#C49A2B]" />
+                          <span className="text-xs font-semibold">Messages</span>
+                        </Button>
+                      </div>
+
+                      {/* Profile Completion + Missing Documents + Deadlines */}
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        {/* Profile Completion */}
+                        <div className="rounded-2xl border border-border/60 bg-card/65 p-5 shadow-lg backdrop-blur-md">
+                          <h3 className="font-serif text-sm font-bold mb-3 flex items-center gap-2">
+                            <Target className="w-4 h-4 text-primary" /> Profile Completion
+                          </h3>
+                          {(() => {
+                            const fields = [
+                              profile?.full_name, profile?.phone, profile?.whatsapp,
+                              profile?.nationality, profile?.education_level, profile?.field_of_study,
+                            ]
+                            const filled = fields.filter(Boolean).length
+                            const pct = Math.round((filled / fields.length) * 100)
+                            return (
+                              <>
+                                <div className="w-full bg-border/40 rounded-full h-2.5 mb-2">
+                                  <div className="bg-primary h-2.5 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                                </div>
+                                <p className="text-xs text-muted-foreground">{pct}% complete - {fields.length - filled} field{fields.length - filled !== 1 ? "s" : ""} remaining</p>
+                                {pct < 100 && (
+                                  <Button variant="ghost" size="sm" className="mt-2 h-8 text-xs" onClick={() => setActiveTab("profile")}>
+                                    Complete Profile <ArrowRight className="w-3 h-3 ml-1" />
+                                  </Button>
+                                )}
+                              </>
+                            )
+                          })()}
+                        </div>
+
+                        {/* Missing Document Alerts */}
+                        <div className="rounded-2xl border border-amber-200/60 bg-amber-50/30 p-5 shadow-lg backdrop-blur-md">
+                          <h3 className="font-serif text-sm font-bold mb-3 flex items-center gap-2 text-amber-700">
+                            <AlertTriangle className="w-4 h-4" /> Missing Documents
+                          </h3>
+                          {(() => {
+                            const missing = documents.filter(d => d.status === "Missing" || d.status === "Rejected")
+                            if (missing.length === 0) {
+                              return <p className="text-xs text-muted-foreground">All documents in order</p>
+                            }
+                            return (
+                              <div className="space-y-2">
+                                {missing.slice(0, 3).map(doc => (
+                                  <div key={doc.id} className="flex items-center justify-between bg-white/50 rounded-lg px-3 py-2">
+                                    <span className="text-xs font-medium text-foreground">{doc.name}</span>
+                                    <StatusBadge status={doc.status} variant={doc.status === "Missing" ? "warning" : "destructive"} />
+                                  </div>
+                                ))}
+                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => navigate("/dashboard/documents")}>
+                                  View all <ArrowRight className="w-3 h-3 ml-1" />
+                                </Button>
+                              </div>
+                            )
+                          })()}
+                        </div>
+
+                        {/* Upcoming Deadlines */}
+                        <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/30 p-5 shadow-lg backdrop-blur-md">
+                          <h3 className="font-serif text-sm font-bold mb-3 flex items-center gap-2 text-emerald-700">
+                            <Clock className="w-4 h-4" /> Upcoming Deadlines
+                          </h3>
+                          {(() => {
+                            const upcomingAppts = appointments
+                              .filter(a => a.status === "Scheduled" && new Date(a.scheduled_at) > new Date())
+                              .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+                              .slice(0, 2)
+                            if (upcomingAppts.length === 0) {
+                              return <p className="text-xs text-muted-foreground">No upcoming appointments</p>
+                            }
+                            return (
+                              <div className="space-y-2">
+                                {upcomingAppts.map(a => (
+                                  <div key={a.id} className="flex items-center justify-between bg-white/50 rounded-lg px-3 py-2">
+                                    <div>
+                                      <p className="text-xs font-medium text-foreground">{a.appointment_type}</p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {new Date(a.scheduled_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                                      </p>
+                                    </div>
+                                    <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Scheduled</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Active Application Summary */}
                       <div className="rounded-2xl border border-border/60 bg-card/65 p-6 shadow-xl backdrop-blur-md">
                         <div className="flex items-center justify-between border-b border-border/40 pb-4 mb-4">
-                          <h2 className="font-serif text-xl font-semibold">Active Applications</h2>
-                          <Link to="/countries" className="text-xs font-semibold text-primary hover:underline flex items-center">
-                            Explore programs <ChevronRight className="h-3 w-3 ml-0.5" />
-                          </Link>
+                          <h2 className="font-serif text-xl font-semibold flex items-center gap-2">
+                            <Briefcase className="w-5 h-5 text-primary" /> Active Applications
+                          </h2>
+                          <div className="flex items-center gap-2">
+                            <Select value={selectedStatusFilter} onValueChange={setSelectedStatusFilter}>
+                              <SelectTrigger className="w-32 h-8 text-xs">
+                                <SelectValue placeholder="Filter status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All Statuses</SelectItem>
+                                <SelectItem value="draft">Draft</SelectItem>
+                                <SelectItem value="submitted">Submitted</SelectItem>
+                                <SelectItem value="under_review">Under Review</SelectItem>
+                                <SelectItem value="approved">Approved</SelectItem>
+                                <SelectItem value="rejected">Rejected</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Link to="/dashboard/applications" className="text-xs font-semibold text-primary hover:underline flex items-center">
+                              All files <ChevronRight className="h-3 w-3 ml-0.5" />
+                            </Link>
+                          </div>
                         </div>
 
                         {applications.length === 0 ? (
                           <div className="py-12 text-center">
                             <Briefcase className="mx-auto h-12 w-12 text-muted-foreground/45 mb-3" />
                             <h3 className="text-sm font-semibold text-foreground">No applications found</h3>
-                            <p className="text-xs text-muted-foreground mt-1">You haven&apos;t started any visa program applications yet.</p>
+                            <p className="text-xs text-muted-foreground mt-1">You have not started any visa program applications yet.</p>
+                            <Button asChild variant="outline" className="mt-4 rounded-full" onClick={() => navigate("/countries")}>
+                              <span className="flex items-center gap-1">Browse Countries <ArrowRight className="w-3 h-3" /></span>
+                            </Button>
                           </div>
                         ) : (
-                          <div className="space-y-6">
-                            {applications.slice(0, 2).map((app) => (
+                          <div className="space-y-4">
+                            {(selectedStatusFilter === "all" ? applications : applications.filter(a => a.status === selectedStatusFilter)).slice(0, 5).map((app) => (
                               <ApplicationCard key={app.id} app={app} getStatusStepIndex={getStatusStepIndex} getStatusColorClass={getStatusColorClass} />
                             ))}
                           </div>
                         )}
                       </div>
 
-                      {/* Recent Consultations Card */}
+                      {/* Recent Activity Timeline */}
                       <div className="rounded-2xl border border-border/60 bg-card/65 p-6 shadow-xl backdrop-blur-md">
                         <div className="flex items-center justify-between border-b border-border/40 pb-4 mb-4">
-                          <h2 className="font-serif text-xl font-semibold">Scheduled Consultations</h2>
+                          <h2 className="font-serif text-xl font-semibold flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5 text-primary" /> Recent Activity
+                          </h2>
                         </div>
-
-                        {consultations.length === 0 ? (
-                          <div className="py-12 text-center">
-                            <Calendar className="mx-auto h-12 w-12 text-muted-foreground/45 mb-3" />
-                            <h3 className="text-sm font-semibold text-foreground">No consultations scheduled</h3>
-                            <p className="text-xs text-muted-foreground mt-1">Book a free session to discuss your profile with a visa expert.</p>
-                          </div>
-                        ) : (
-                          <div className="divide-y divide-border/40 space-y-4">
-                            {consultations.slice(0, 3).map((con, idx) => (
-                              <div key={con.id} className={`flex items-start justify-between gap-4 ${idx > 0 ? "pt-4" : ""}`}>
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                                      {con.consultation_type.replaceAll("_", " ").toUpperCase()}
+                        {(() => {
+                          const activities = []
+                          if (applications.length > 0) {
+                            const latest = applications[0]
+                            activities.push({
+                              title: `Application: ${latest.countries?.name || "Visa Program"}`,
+                              description: `Status: ${latest.status.replace(/_/g, " ")} - Type: ${latest.application_type}`,
+                              time: latest.created_at,
+                              icon: Briefcase,
+                              color: "bg-primary/10 text-primary",
+                            })
+                          }
+                          const upcomingAppts = appointments.filter(a => a.status === "Scheduled" && new Date(a.scheduled_at) > new Date()).sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+                          if (upcomingAppts.length > 0) {
+                            activities.push({
+                              title: `Appointment: ${upcomingAppts[0].appointment_type}`,
+                              description: `${upcomingAppts[0].preferred_country || "TBD"} - ${new Date(upcomingAppts[0].scheduled_at).toLocaleDateString()}`,
+                              time: upcomingAppts[0].scheduled_at,
+                              icon: Calendar,
+                              color: "bg-emerald-500/10 text-emerald-500",
+                            })
+                          }
+                          const missingDocs = documents.filter(d => d.status === "Missing" || d.status === "Rejected")
+                          if (missingDocs.length > 0) {
+                            activities.push({
+                              title: `${missingDocs.length} document(s) need attention`,
+                              description: missingDocs[0].name,
+                              time: missingDocs[0].updated_at,
+                              icon: AlertTriangle,
+                              color: "bg-amber-500/10 text-amber-500",
+                            })
+                          }
+                          if (activities.length === 0) {
+                            return <div className="py-8 text-center"><Clock className="mx-auto h-8 w-8 text-muted-foreground/35 mb-2" /><p className="text-xs text-muted-foreground">No recent activity</p></div>
+                          }
+                          return (
+                            <div className="relative pl-4 border-l-2 border-border/40 space-y-6 py-1">
+                              {activities.map((act, idx) => {
+                                const Icon = act.icon
+                                return (
+                                  <div key={idx} className="relative space-y-1">
+                                    <span className={`absolute -left-[22px] top-0 p-1 rounded-full shrink-0 border border-white/30 shadow-sm ${act.color}`}>
+                                      <Icon className="h-3 w-3" />
                                     </span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {new Date(con.scheduled_at).toLocaleDateString(undefined, { 
-                                        weekday: 'short', month: 'short', day: 'numeric' 
-                                      })}
+                                    <h4 className="text-xs font-bold leading-tight text-foreground">{act.title}</h4>
+                                    <p className="text-[10px] text-muted-foreground leading-normal">{act.description}</p>
+                                    <span className="text-[9px] text-muted-foreground/80 block mt-0.5">
+                                      {new Date(act.time).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                                     </span>
                                   </div>
-                                  <h4 className="text-sm font-bold text-foreground">
-                                    Target Country: {con.preferred_country || "Not specified"}
-                                  </h4>
-                                  {con.user_notes?.notes && (
-                                    <p className="text-xs text-muted-foreground line-clamp-1 italic">
-                                      &ldquo;{con.user_notes.notes}&rdquo;
-                                    </p>
-                                  )}
-                                </div>
-                                <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${
-                                  con.status === "confirmed" || con.status === "completed" 
-                                    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
-                                    : con.status === "cancelled" 
-                                      ? "bg-destructive/10 text-destructive border-destructive/20"
-                                      : "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                                }`}>
-                                  {con.status.toUpperCase()}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                                )
+                              })}
+                            </div>
+                          )
+                        })()}
                       </div>
                     </motion.div>
                   )}

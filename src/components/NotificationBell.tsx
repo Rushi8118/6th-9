@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useEffect, useId, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, Check, Clipboard, Info, CalendarRange, Landmark, MessageSquareText } from 'lucide-react'
+import { Bell, Check, Clipboard, Info, CalendarRange, Landmark } from 'lucide-react'
 import { useNotifications, Notification } from '@/hooks/useNotifications'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -8,12 +8,12 @@ export default function NotificationBell() {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelId = useId()
   const navigate = useNavigate()
 
-  // Toggle dropdown
   const toggleDropdown = () => setIsOpen((prev) => !prev)
 
-  // Handle outside clicks and Escape key
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -24,6 +24,7 @@ export default function NotificationBell() {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setIsOpen(false)
+        triggerRef.current?.focus()
       }
     }
 
@@ -38,21 +39,20 @@ export default function NotificationBell() {
     }
   }, [isOpen])
 
-  // Get matching icon per notification type
   const getNotificationIcon = (type: Notification['type']) => {
     switch (type) {
       case 'application_update':
-        return <Clipboard className="h-4 w-4 text-[#C49A2B]" />
+        return <Clipboard className="h-4 w-4 text-[#C49A2B]" aria-hidden="true" />
       case 'consultation_reminder':
-        return <CalendarRange className="h-4 w-4 text-emerald-500" />
+        return <CalendarRange className="h-4 w-4 text-emerald-700" aria-hidden="true" />
       case 'payment_due':
-        return <Landmark className="h-4 w-4 text-red-500" />
+        return <Landmark className="h-4 w-4 text-red-700" aria-hidden="true" />
       case 'document_request':
-        return <Clipboard className="h-4 w-4 text-[#C49A2B]" />
+        return <Clipboard className="h-4 w-4 text-[#C49A2B]" aria-hidden="true" />
       case 'promotion':
-        return <Info className="h-4 w-4 text-purple-500" />
+        return <Info className="h-4 w-4 text-[#1A2340]" aria-hidden="true" />
       default:
-        return <Bell className="h-4 w-4 text-[#C49A2B]" />
+        return <Bell className="h-4 w-4 text-[#C49A2B]" aria-hidden="true" />
     }
   }
 
@@ -68,86 +68,111 @@ export default function NotificationBell() {
     }
   }
 
+  const focusRing =
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C49A2B] focus-visible:ring-offset-2'
+
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Bell Trigger Button */}
       <button
+        ref={triggerRef}
+        type="button"
         onClick={toggleDropdown}
-        className="relative p-2 text-[#1a1a2e] hover:text-[#C49A2B] bg-[#F5F0E8]/50 hover:bg-[#F5F0E8] rounded-full border border-border/40 transition duration-200"
-        aria-label="Notifications"
+        className={`relative p-2.5 min-h-10 min-w-10 text-[#1A2340] hover:text-[#C49A2B] bg-[#FCFBF8]/90 hover:bg-[#C49A2B]/10 rounded-full border border-[#C49A2B]/25 transition duration-200 ${focusRing}`}
+        aria-label={
+          unreadCount > 0
+            ? `Notifications, ${unreadCount} unread`
+            : 'Notifications, no unread'
+        }
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? panelId : undefined}
       >
-        <Bell className="h-5 w-5" />
+        <Bell className="h-5 w-5" aria-hidden="true" />
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-bold leading-none text-white bg-red-600 rounded-full animate-pulse transform translate-x-1/3 -translate-y-1/3">
-            {unreadCount}
+          <span
+            className="absolute top-0 right-0 inline-flex items-center justify-center min-w-[1.15rem] px-1 py-0.5 text-[10px] font-bold leading-none text-white bg-red-700 rounded-full transform translate-x-1/4 -translate-y-1/4"
+            aria-hidden="true"
+          >
+            {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
-      {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-card border border-border/80 rounded-2xl shadow-xl z-50 overflow-hidden transform origin-top-right transition duration-300 scale-100 opacity-100">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-[#1a1a2e] text-[#F5F0E8] border-b border-border/20">
+        <div
+          id={panelId}
+          role="dialog"
+          aria-label="Notifications"
+          className="absolute right-0 mt-3 w-[min(100vw-1.5rem,24rem)] sm:w-96 bg-[#FCFBF8]/97 border border-[#C49A2B]/20 rounded-2xl shadow-[0_18px_40px_-18px_rgba(26,35,64,0.45)] backdrop-blur-xl z-50 overflow-hidden"
+        >
+          <div className="flex items-center justify-between gap-2 px-4 py-3 bg-[#1A2340] text-[#FFF8E7] border-b border-[#C49A2B]/20">
             <h3 className="font-serif text-sm font-semibold">Notifications</h3>
             {unreadCount > 0 && (
               <button
+                type="button"
                 onClick={() => markAllAsRead()}
-                className="flex items-center gap-1 text-[11px] text-[#C49A2B] hover:text-[#C49A2B]/85 font-medium transition"
+                className={`flex items-center gap-1 min-h-9 px-2 text-xs text-[#E8B84B] hover:text-[#FFF8E7] font-medium transition rounded-md ${focusRing} focus-visible:ring-offset-[#1A2340]`}
               >
-                <Check className="h-3 w-3" /> Mark all read
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                Mark all read
               </button>
             )}
           </div>
 
-          {/* List items */}
-          <div className="max-h-[300px] overflow-y-auto divide-y divide-border/30">
+          <div className="max-h-[min(60vh,300px)] overflow-y-auto divide-y divide-border/30">
             {lastFive.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-                <Bell className="h-8 w-8 text-muted-foreground/35 mb-2" />
-                <p className="text-xs text-muted-foreground font-medium">All caught up!</p>
-                <p className="text-[10px] text-muted-foreground/80">No recent notifications.</p>
+                <Bell className="h-8 w-8 text-foreground/30 mb-2" aria-hidden="true" />
+                <p className="text-sm text-foreground/70 font-medium">All caught up!</p>
+                <p className="text-xs text-foreground/55 mt-1">No recent notifications.</p>
               </div>
             ) : (
               lastFive.map((notif) => (
-                <div
+                <button
                   key={notif.id}
+                  type="button"
                   onClick={() => handleItemClick(notif)}
-                  className={`flex items-start gap-3 p-4.5 cursor-pointer hover:bg-[#F5F0E8]/40 transition ${
-                    !notif.is_read ? 'bg-[#C49A2B]/5 border-l-2 border-[#C49A2B]' : ''
+                  className={`w-full flex items-start gap-3 p-4 text-left cursor-pointer hover:bg-[#C49A2B]/8 transition ${focusRing} focus-visible:ring-inset ${
+                    !notif.is_read ? 'bg-[#C49A2B]/10 border-l-2 border-[#C49A2B]' : ''
                   }`}
                 >
-                  <div className="mt-0.5 p-1.5 rounded-full bg-[#1a1a2e]/5 shrink-0">
+                  <div className="mt-0.5 p-1.5 rounded-full bg-[#1A2340]/5 shrink-0" aria-hidden="true">
                     {getNotificationIcon(notif.type)}
                   </div>
-                  <div className="space-y-1 flex-1">
-                    <h4 className={`text-xs font-semibold text-[#1a1a2e] line-clamp-1 ${!notif.is_read ? 'font-bold' : ''}`}>
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <h4
+                      className={`text-sm text-[#1A2340] line-clamp-1 ${
+                        !notif.is_read ? 'font-bold' : 'font-semibold'
+                      }`}
+                    >
                       {notif.title}
+                      {!notif.is_read && <span className="sr-only"> (unread)</span>}
                     </h4>
                     {notif.message && (
-                      <p className="text-[11px] text-muted-foreground line-clamp-2">
-                        {notif.message}
-                      </p>
+                      <p className="text-xs text-foreground/65 line-clamp-2">{notif.message}</p>
                     )}
-                    <span className="text-[9px] text-muted-foreground/75 block">
+                    <time
+                      className="text-[11px] text-foreground/55 block"
+                      dateTime={notif.created_at}
+                    >
                       {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true })}
-                    </span>
+                    </time>
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>
 
-          {/* View All Footer */}
-          <div
+          <button
+            type="button"
             onClick={() => {
               setIsOpen(false)
               navigate('/dashboard/notifications')
             }}
-            className="block text-center py-2.5 bg-[#F5F0E8]/30 hover:bg-[#F5F0E8]/60 text-xs font-semibold text-[#C49A2B] border-t border-border/30 cursor-pointer transition"
+            className={`block w-full text-center py-3 min-h-11 bg-[#F5F0E8]/70 hover:bg-[#C49A2B]/12 text-sm font-semibold text-[#8a6a1a] border-t border-[#E0D8C8] transition ${focusRing}`}
           >
             View all notifications
-          </div>
+          </button>
         </div>
       )}
     </div>

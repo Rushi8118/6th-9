@@ -133,7 +133,7 @@ export function DataTable<T extends Record<string, any>>({
             ) : (
               pageData.map((row, i) => (
                 <TableRow
-                  key={i}
+                  key={row.id ?? i}
                   onClick={() => onRowClick?.(row)}
                   className={onRowClick ? 'cursor-pointer' : ''}
                 >

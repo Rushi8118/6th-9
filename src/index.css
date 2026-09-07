@@ -231,6 +231,134 @@ html {
   }
 }
 
+/* ---------- USER DASHBOARD (matches home: ivory + navy + gold) ---------- */
+.user-dashboard {
+  --ud-ink: #1a2340;
+  --ud-ink-soft: #2a3555;
+  --ud-canvas: #f5f0e8;
+  --ud-surface: #fcfbf8;
+  --ud-copper: #c49a2b;
+  --ud-copper-soft: #e8b84b;
+  --ud-sea: #c49a2b;
+  --ud-text: #1a2340;
+  --ud-muted: #5c6478;
+  --ud-line: #e0d8c8;
+  --ud-focus: #c9a227;
+  --ud-sidebar-w: 17rem;
+  --ud-sidebar-collapsed: 5rem;
+  color: var(--ud-text);
+  background:
+    radial-gradient(ellipse 70% 45% at 100% -8%, rgba(196, 154, 43, 0.14), transparent 55%),
+    radial-gradient(ellipse 55% 40% at -8% 90%, rgba(26, 35, 64, 0.08), transparent 50%),
+    linear-gradient(165deg, #f7f2ea 0%, var(--ud-canvas) 45%, #faf7f1 100%);
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+}
+
+.user-dashboard .ud-display {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.user-dashboard .ud-rail {
+  background:
+    linear-gradient(180deg, rgba(196, 154, 43, 0.12) 0%, transparent 32%),
+    var(--ud-ink);
+  box-shadow: inset -1px 0 0 rgba(196, 154, 43, 0.12);
+}
+
+.user-dashboard .ud-rail-active {
+  background: #c49a2b;
+  color: #1a2340;
+  box-shadow: 0 10px 22px -12px rgba(196, 154, 43, 0.75);
+}
+
+.user-dashboard .ud-topbar {
+  background: rgba(252, 251, 248, 0.9);
+  border-bottom: 1px solid rgba(196, 154, 43, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.user-dashboard .ud-panel {
+  background: var(--ud-surface);
+  border: 1px solid var(--ud-line);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75) inset;
+}
+
+.user-dashboard .ud-stat {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.user-dashboard .ud-stat::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--ud-accent, var(--ud-copper));
+  border-radius: 3px 0 0 3px;
+}
+
+.user-dashboard .ud-welcome {
+  background:
+    linear-gradient(125deg, #1a2340 0%, #243056 58%, #2f3d66 100%);
+  color: #fff8e7;
+}
+
+.user-dashboard .ud-welcome-mesh {
+  background-image:
+    radial-gradient(circle at 16% 85%, rgba(196, 154, 43, 0.38), transparent 30%),
+    radial-gradient(circle at 90% 12%, rgba(255, 248, 231, 0.1), transparent 34%),
+    repeating-linear-gradient(
+      -18deg,
+      transparent,
+      transparent 11px,
+      rgba(255, 255, 255, 0.03) 11px,
+      rgba(255, 255, 255, 0.03) 12px
+    );
+}
+
+.user-dashboard .ud-mobile-nav {
+  background: rgba(26, 35, 64, 0.97);
+  border-top: 1px solid rgba(196, 154, 43, 0.28);
+  backdrop-filter: blur(12px);
+}
+
+.user-dashboard :focus-visible {
+  outline: 2px solid var(--ud-focus);
+  outline-offset: 3px;
+}
+
+@keyframes ud-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.user-dashboard .ud-rise {
+  animation: ud-rise 0.45s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+.user-dashboard .ud-rise-2 {
+  animation-delay: 0.08s;
+}
+
+.user-dashboard .ud-rise-3 {
+  animation-delay: 0.16s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-dashboard .ud-rise,
+  .user-dashboard .ud-rise-2,
+  .user-dashboard .ud-rise-3 {
+    animation: none;
+  }
+}
+
 /* ---------- SKIP TO CONTENT ---------- */
 
 .skip-to-content {
