@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { PermissionGuard } from '@/components/auth/PermissionGuard'
 import { Briefcase, Filter } from 'lucide-react'

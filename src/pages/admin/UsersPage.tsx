@@ -1,12 +1,13 @@
 import { PermissionGuard } from '@/components/auth/PermissionGuard'
 import { useAuth } from '@/hooks/use-auth'
+import { isSuperAdmin } from '@/lib/rbac'
 import { supabase } from '@/lib/supabase/client'
-import { useState, useEffect, useCallback } from 'react'
 import { Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/admin/DataTable'
 import { StatusBadge, roleBadge } from '@/components/admin/StatusBadge'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 
 type UserRow = {
   id: string
@@ -17,22 +18,17 @@ type UserRow = {
 }
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<UserRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const { hasPermission } = useAuth()
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: async () => {
+      const { data: data } = await supabase.from('user_profiles').select('*').limit(50)
+      return data
+    },
+  })
+  const { profile } = useAuth()
   const navigate = useNavigate()
-
-  const loadUsers = useCallback(async () => {
-    setLoading(true)
-    try {
-      const { data } = await supabase.from('user_profiles').select('*').limit(50)
-      setUsers(data ?? [])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { loadUsers() }, [loadUsers])
+  const superAdmin = isSuperAdmin(profile?.user_role)
+  const users = (data ?? []) as UserRow[]
 
   const columns = [
     {
@@ -74,6 +70,20 @@ export default function AdminUsersPage() {
       ),
       sortable: true,
     },
+    ...(superAdmin ? [{
+      key: 'actions',
+      header: 'Actions',
+      accessor: (row: UserRow) => (
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/users/${row.id}`)}>
+            Edit
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => {}}>
+            Delete
+          </Button>
+        </div>
+      ),
+    }] : []),
   ]
 
   return (
@@ -85,15 +95,24 @@ export default function AdminUsersPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Manage user accounts</p>
         </div>
-        <PermissionGuard permission="users.create">
-          <Button onClick={() => navigate('/admin/users/new')}>Add User</Button>
-        </PermissionGuard>
+        <div className="flex gap-2">
+          {superAdmin && (
+            <PermissionGuard permission="users.delete">
+              <Button variant="destructive" onClick={() => navigate('/admin/users/new')}>
+                Add User
+              </Button>
+            </PermissionGuard>
+          )}
+          <PermissionGuard permission="users.create">
+            <Button onClick={() => navigate('/admin/users/new')}>Add User</Button>
+          </PermissionGuard>
+        </div>
       </div>
 
       <DataTable
         columns={columns}
         data={users}
-        loading={loading}
+        loading={isLoading}
         emptyMessage="No users found"
         searchPlaceholder="Search by email or name..."
       />
