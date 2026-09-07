@@ -13,10 +13,12 @@ import { useQuery } from '@tanstack/react-query'
 type AppRow = {
   id: string
   application_id?: string
-  user_profiles?: { full_name: string | null; email: string } | null
+  user_profile_full_name?: string | null
+  user_profile_email?: string | null
   application_type: string
   status: string
   created_at: string
+  user_id?: string
 }
 
 const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 'info' | 'purple'> = {
@@ -33,10 +35,7 @@ export default function AdminApplicationsPage() {
     queryKey: ['admin-applications'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('applications')
-        .select('*, user_profiles!left(full_name, email)')
-        .order('created_at', { ascending: false })
-        .limit(50)
+        .rpc('get_all_applications')
       if (error) throw error
       return (data ?? []) as unknown as AppRow[]
     },
@@ -70,7 +69,7 @@ export default function AdminApplicationsPage() {
       header: 'Applicant',
       accessor: (row: AppRow) => (
         <span className="text-foreground">
-          {row.user_profiles?.full_name || row.user_profiles?.email || 'Unknown'}
+          {row.user_profile_full_name || row.user_profile_email || 'Unknown'}
         </span>
       ),
       sortable: true,
@@ -121,11 +120,11 @@ export default function AdminApplicationsPage() {
       {error && (
         <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
           <p>Failed to load applications.</p>
-          <p className="mt-1 text-xs font-mono text-red-700 whitespace-pre-wrap">
-            {(error as any)?.message || 'Unknown error — likely an RLS policy block. Run FIX_APP_ADMIN_ACCESS.sql in Supabase SQL Editor.'}
+          <p className="mt-1 text-xs font-mono text-red-700">
+            {(error as any)?.message || 'Unknown error'}
           </p>
           <p className="mt-2 text-xs text-red-600">
-            Go to Supabase Dashboard → SQL Editor → run <code>supabase/FIX_APP_ADMIN_ACCESS.sql</code>
+            Run <code>supabase/FIX_APP_RPC.sql</code> then <code>supabase/FIX_APP_ADMIN_ACCESS.sql</code> in Supabase SQL Editor.
           </p>
         </div>
       )}
