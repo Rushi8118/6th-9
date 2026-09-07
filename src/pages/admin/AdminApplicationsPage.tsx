@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { subscribePostgresChanges } from '@/lib/supabase/realtime'
 import { PermissionGuard } from '@/components/auth/PermissionGuard'
 import { Briefcase, Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -7,6 +8,7 @@ import { DataTable } from '@/components/admin/DataTable'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import { Empty } from '@/components/ui/empty'
 import { Loader2 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 
 type AppRow = {
   id: string
@@ -27,27 +29,30 @@ const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'destru
 }
 
 export default function AdminApplicationsPage() {
-  const [applications, setApplications] = useState<AppRow[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const loadApplications = useCallback(async () => {
-    setLoading(true)
-    try {
+  const { data: applications, isLoading, error, refetch } = useQuery({
+    queryKey: ['admin-applications'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('applications')
         .select('*, user_profiles!left(full_name, email)')
         .order('created_at', { ascending: false })
         .limit(50)
       if (error) throw error
-      setApplications((data ?? []) as unknown as AppRow[])
-    } catch {
-      setApplications([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+      return (data ?? []) as unknown as AppRow[]
+    },
+  })
 
-  useEffect(() => { loadApplications() }, [loadApplications])
+  useEffect(() => {
+    const unsubscribe = subscribePostgresChanges(
+      supabase,
+      'admin-applications',
+      { event: '*', schema: 'public', table: 'applications' },
+      () => {
+        void refetch()
+      },
+    )
+    return unsubscribe
+  }, [refetch])
 
   const columns = [
     {
@@ -107,24 +112,28 @@ export default function AdminApplicationsPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">View and manage visa applications</p>
         </div>
-      </div>
-      <div className="flex gap-3">
-        <Button variant="outline" onClick={loadApplications} disabled={loading}>
-          {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Filter className="w-4 h-4 mr-1" />}
-          {loading ? 'Loading...' : 'Refresh'}
+        <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
+          {isLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Filter className="w-4 h-4 mr-1" />}
+          {isLoading ? 'Loading...' : 'Refresh'}
         </Button>
       </div>
 
-      {loading ? (
+      {error && (
+        <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+          Failed to load applications. Check console for details.
+        </div>
+      )}
+
+      {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : applications.length === 0 ? (
+      ) : !error && applications && applications.length === 0 ? (
         <Empty title="No applications found" description="Applications will appear here once submitted." />
       ) : (
         <DataTable
           columns={columns}
-          data={applications}
+          data={applications || []}
           loading={false}
           emptyMessage="No applications found"
           searchPlaceholder="Search by applicant or type..."
