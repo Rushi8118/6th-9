@@ -12,13 +12,12 @@ import { useQuery } from '@tanstack/react-query'
 
 type AppRow = {
   id: string
-  application_id?: string
-  user_profile_full_name?: string | null
-  user_profile_email?: string | null
+  application_id: string | null
+  user_profile_full_name: string | null
+  user_profile_email: string | null
   application_type: string
   status: string
   created_at: string
-  user_id?: string
 }
 
 const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 'info' | 'purple'> = {
@@ -34,10 +33,10 @@ export default function AdminApplicationsPage() {
   const { data: applications, isLoading, error, refetch } = useQuery({
     queryKey: ['admin-applications'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc('get_all_applications')
+      const { data, error } = await supabase.rpc('get_all_applications')
       if (error) throw error
-      return (data ?? []) as unknown as AppRow[]
+      const apps = typeof data === 'string' ? JSON.parse(data) : data
+      return (apps ?? []) as unknown as AppRow[]
     },
   })
 
