@@ -3,7 +3,12 @@
 -- Run this in Supabase SQL Editor
 -- =========================================================
 
-CREATE OR REPLACE FUNCTION get_all_applications()
+DROP FUNCTION IF EXISTS get_all_applications();
+
+CREATE OR REPLACE FUNCTION get_all_applications(
+  p_page INT DEFAULT 1,
+  p_page_size INT DEFAULT 50
+)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -11,6 +16,7 @@ SET search_path = public
 AS $$
 DECLARE
   result jsonb;
+  v_offset INT := (p_page - 1) * p_page_size;
 BEGIN
   SELECT COALESCE(jsonb_agg(row_data), '[]'::jsonb) INTO result
   FROM (
@@ -43,7 +49,8 @@ BEGIN
     FROM applications a
     LEFT JOIN user_profiles up ON up.id = a.user_id
     ORDER BY a.created_at DESC
-    LIMIT 50
+    LIMIT p_page_size
+    OFFSET v_offset
   ) sub;
   RETURN result;
 END;
