@@ -16,6 +16,16 @@ export type AccessVisitRow = {
   user_name?: string | null
 }
 
+export type ApplicationVisitRow = {
+  id: string
+  event_type: string
+  application_id?: string
+  application_type?: string
+  user_email?: string | null
+  user_name?: string | null
+  created_at: string
+}
+
 export type LoggedInUserRow = {
   id: string
   email: string
@@ -38,6 +48,7 @@ export type AdminAccessStats = {
   loggedInUsers7d: number
   recentVisits: AccessVisitRow[]
   recentLogins: LoggedInUserRow[]
+  recentApplications: ApplicationVisitRow[]
   topPages: { path: string; views: number }[]
 }
 
@@ -61,7 +72,7 @@ export function useAdminAccessStats() {
       const todayIso = startOfDayIso(0)
       const weekIso = startOfDayIso(6)
 
-      const [todayViewsRes, weekViewsRes, usersRes, recentLoginsRes, recentEventsRes] =
+      const [todayViewsRes, weekViewsRes, usersRes, recentLoginsRes, recentEventsRes, recentAppsRes] =
         await Promise.all([
           supabase
             .from('interactions')
@@ -97,6 +108,14 @@ export function useAdminAccessStats() {
             .in('event_type', ['page_view', 'login', 'signup'])
             .order('created_at', { ascending: false })
             .limit(40),
+          supabase
+            .from('interactions')
+            .select(
+              'id,user_id,event_type,created_at,metadata',
+            )
+            .eq('event_type', 'application_submitted')
+            .order('created_at', { ascending: false })
+            .limit(10),
         ])
 
       if (todayViewsRes.error) throw todayViewsRes.error
@@ -161,6 +180,22 @@ export function useAdminAccessStats() {
         }
       })
 
+      const recentApplications: ApplicationVisitRow[] = ((recentAppsRes.data || []) as any[]).map(
+        (row) => {
+          const metadata = row.metadata || {}
+          const profile = row.user_id ? profileMap.get(row.user_id) : undefined
+          return {
+            id: row.id,
+            event_type: row.event_type,
+            application_id: metadata?.application_id || null,
+            application_type: metadata?.application_type || null,
+            user_email: profile?.email ?? null,
+            user_name: profile?.full_name ?? null,
+            created_at: row.created_at,
+          }
+        },
+      )
+
       return {
         visitorsToday: uniqueSessionsToday,
         visitors7d: uniqueSessions7d,
@@ -173,6 +208,7 @@ export function useAdminAccessStats() {
         loggedInUsers7d: (recentLoginsRes.data || []).length,
         recentVisits,
         recentLogins: (recentLoginsRes.data || []) as LoggedInUserRow[],
+        recentApplications,
         topPages,
       }
     },

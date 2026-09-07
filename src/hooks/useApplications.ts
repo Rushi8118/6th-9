@@ -5,6 +5,7 @@ import { subscribePostgresChanges } from '@/lib/supabase/realtime'
 import { useAuth } from './use-auth'
 import { isAdminOrAbove } from '@/lib/rbac'
 import { toast } from 'sonner'
+import { markApplicationSubmitted } from '@/lib/site-visit-tracker'
 
 export type Application = {
   id: string
@@ -97,7 +98,8 @@ export function useApplications() {
       if (error) throw error
       return data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      markApplicationSubmitted(user?.id ?? null, data?.application_id, data?.application_type)
       queryClient.invalidateQueries({ queryKey: ['applications'] })
       toast.success('Application started successfully!')
     },

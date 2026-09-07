@@ -180,48 +180,80 @@ export default function AdminDashboard() {
             <h2 className="text-lg font-semibold text-foreground">Recent website activity</h2>
             <span className="text-xs text-muted-foreground">Live access log</span>
           </div>
-          <div className="max-h-[420px] space-y-2 overflow-y-auto">
-            {(stats?.recentVisits || []).length === 0 ? (
+          <div className="max-h-[500px] space-y-2 overflow-y-auto scroll-smooth scrollbar-thin">
+            {(stats?.recentVisits || []).length === 0 && (stats?.recentApplications || []).length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 No visits yet. Open the public site (homepage, blog, guides) to generate logs.
               </p>
             ) : (
-              stats?.recentVisits.map((row) => (
-                <div
-                  key={row.id}
-                  className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2.5"
-                >
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span
-                      className={`rounded-full px-2 py-0.5 font-semibold uppercase ${
-                        row.event_type === 'login'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : row.event_type === 'signup'
-                            ? 'bg-violet-100 text-violet-800'
-                            : 'bg-sky-100 text-sky-800'
-                      }`}
-                    >
-                      {row.event_type.replace('_', ' ')}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {formatDistanceToNow(new Date(row.created_at), { addSuffix: true })}
-                    </span>
-                    {row.device_type && (
-                      <span className="text-muted-foreground">· {row.device_type}</span>
-                    )}
-                    {row.browser && <span className="text-muted-foreground">· {row.browser}</span>}
+              <>
+                {stats?.recentVisits.map((row) => (
+                  <div
+                    key={row.id}
+                    className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2.5"
+                  >
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span
+                        className={`rounded-full px-2 py-0.5 font-semibold uppercase ${
+                          row.event_type === 'login'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : row.event_type === 'signup'
+                              ? 'bg-violet-100 text-violet-800'
+                              : row.event_type === 'application_submitted'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-sky-100 text-sky-800'
+                        }`}
+                      >
+                        {row.event_type === 'application_submitted'
+                          ? 'Application Submitted'
+                          : row.event_type.replace('_', ' ')}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {formatDistanceToNow(new Date(row.created_at), { addSuffix: true })}
+                      </span>
+                      {row.device_type && (
+                        <span className="text-muted-foreground">· {row.device_type}</span>
+                      )}
+                      {row.browser && <span className="text-muted-foreground">· {row.browser}</span>}
+                    </div>
+                    <p className="mt-1 truncate text-sm font-medium text-foreground">
+                      {row.page_path || '—'}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {row.user_email
+                        ? `${row.user_name || 'User'} · ${row.user_email}`
+                        : 'Guest visitor'}
+                      {row.referrer ? ` · from ${row.referrer}` : ''}
+                    </p>
                   </div>
-                  <p className="mt-1 truncate text-sm font-medium text-foreground">
-                    {row.page_path || '—'}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {row.user_email
-                      ? `${row.user_name || 'User'} · ${row.user_email}`
-                      : 'Guest visitor'}
-                    {row.referrer ? ` · from ${row.referrer}` : ''}
-                  </p>
-                </div>
-              ))
+                ))}
+                {stats?.recentApplications.map((app) => (
+                  <div
+                    key={app.id}
+                    className="rounded-xl border border-amber-200/70 bg-amber-50/20 px-3 py-2.5"
+                  >
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold uppercase text-amber-800">
+                        Application Submitted
+                      </span>
+                      <span className="text-muted-foreground">
+                        {formatDistanceToNow(new Date(app.created_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate text-sm font-medium text-foreground">
+                      {app.application_type
+                        ? `${app.application_type.charAt(0).toUpperCase() + app.application_type.slice(1)} Application`
+                        : 'Application Submitted'}
+                      {app.application_id ? ` · ${app.application_id}` : ''}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {app.user_email
+                        ? `${app.user_name || 'User'} · ${app.user_email}`
+                        : 'Guest applicant'}
+                    </p>
+                  </div>
+                ))}
+              </>
             )}
           </div>
         </section>
@@ -233,7 +265,7 @@ export default function AdminDashboard() {
               <Link to="/admin/users">All users</Link>
             </Button>
           </div>
-          <div className="max-h-[420px] space-y-2 overflow-y-auto">
+          <div className="max-h-[500px] space-y-2 overflow-y-auto scroll-smooth scrollbar-thin">
             {(stats?.recentLogins || []).length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 No logins recorded in the last 7 days yet.

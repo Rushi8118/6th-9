@@ -42,10 +42,11 @@ function detectBrowser(): string {
 }
 
 export type TrackEventInput = {
-  eventType: 'page_view' | 'login' | 'signup'
+  eventType: 'page_view' | 'login' | 'signup' | 'application_submitted'
   path?: string
   title?: string
   userId?: string | null
+  metadata?: Record<string, any>
 }
 
 export async function trackSiteEvent(input: TrackEventInput): Promise<void> {
@@ -80,6 +81,7 @@ export async function trackSiteEvent(input: TrackEventInput): Promise<void> {
       metadata: {
         href: window.location.href,
         language: navigator.language,
+        ...(input.metadata || {}),
       },
     })
   } catch {
@@ -101,6 +103,24 @@ export async function markUserLogin(userId: string): Promise<void> {
         userId,
       }),
     ])
+  } catch {
+    // ignore
+  }
+}
+
+export async function markApplicationSubmitted(
+  userId: string | null,
+  applicationId?: string,
+  applicationType?: string,
+): Promise<void> {
+  try {
+    await trackSiteEvent({
+      eventType: 'application_submitted',
+      path: window.location.pathname,
+      title: 'Application Submitted',
+      userId,
+      metadata: { application_id: applicationId, application_type: applicationType },
+    })
   } catch {
     // ignore
   }

@@ -205,8 +205,8 @@ const AdminLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Navigation */}
-      <nav className="flex-1 min-h-0 overflow-y-auto py-3 px-2 space-y-1">
+        {/* Navigation */}
+        <nav className="flex-1 min-h-0 overflow-y-auto py-3 px-2 space-y-1 scroll-smooth scrollbar-thin">
         {navGroups.map(group => (
           <div key={group.label}>
             {!collapsed && (
@@ -322,7 +322,7 @@ const AdminLayout: React.FC = () => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 min-h-0 p-4 lg:p-8 overflow-y-auto">
+        <main className="flex-1 min-h-0 p-4 lg:p-8 overflow-y-auto scroll-smooth scrollbar-thin">
           <AdminErrorBoundary key={location.pathname}>
             <Outlet />
           </AdminErrorBoundary>

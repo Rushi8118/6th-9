@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { PermissionGuard } from '@/components/auth/PermissionGuard'
-import { Briefcase, Search, Filter } from 'lucide-react'
+import { Briefcase, Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { SearchBar } from '@/components/admin/SearchBar'
 import { DataTable } from '@/components/admin/DataTable'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import { Empty } from '@/components/ui/empty'
@@ -30,13 +29,19 @@ const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'destru
 export default function AdminApplicationsPage() {
   const [applications, setApplications] = useState<AppRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
 
   const loadApplications = useCallback(async () => {
     setLoading(true)
     try {
-      const { data } = await supabase.from('applications').select('*, user_profiles!inner(*)').limit(50)
-      setApplications(data ?? [])
+      const { data, error } = await supabase
+        .from('applications')
+        .select('*, user_profiles!left(full_name, email)')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (error) throw error
+      setApplications((data ?? []) as unknown as AppRow[])
+    } catch {
+      setApplications([])
     } finally {
       setLoading(false)
     }
@@ -104,12 +109,6 @@ export default function AdminApplicationsPage() {
         </div>
       </div>
       <div className="flex gap-3">
-        <SearchBar
-          value={search}
-          onChange={setSearch}
-          placeholder="Search applications..."
-          className="flex-1 max-w-sm"
-        />
         <Button variant="outline" onClick={loadApplications} disabled={loading}>
           {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Filter className="w-4 h-4 mr-1" />}
           {loading ? 'Loading...' : 'Refresh'}
