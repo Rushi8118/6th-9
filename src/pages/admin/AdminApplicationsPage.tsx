@@ -120,7 +120,13 @@ export default function AdminApplicationsPage() {
 
       {error && (
         <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
-          Failed to load applications. Check console for details.
+          <p>Failed to load applications.</p>
+          <p className="mt-1 text-xs font-mono text-red-700 whitespace-pre-wrap">
+            {(error as any)?.message || 'Unknown error — likely an RLS policy block. Run FIX_APP_ADMIN_ACCESS.sql in Supabase SQL Editor.'}
+          </p>
+          <p className="mt-2 text-xs text-red-600">
+            Go to Supabase Dashboard → SQL Editor → run <code>supabase/FIX_APP_ADMIN_ACCESS.sql</code>
+          </p>
         </div>
       )}
 

@@ -135,7 +135,10 @@ export function useAdminAccessStats() {
 
       if (todayViewsRes.error) throw todayViewsRes.error
       if (weekViewsRes.error) throw weekViewsRes.error
-      if (appsTableRes.error) throw appsTableRes.error
+      if (recentEventsRes.error) throw recentEventsRes.error
+      // appsTableRes may fail due to RLS; don't crash the whole query
+      if (usersRes.error) throw usersRes.error
+      if (recentLoginsRes.error) throw recentLoginsRes.error
 
       const todayPublic = (todayViewsRes.data || []).filter((r) => isPublicPath(r.page_path))
       const weekPublic = (weekViewsRes.data || []).filter((r) => isPublicPath(r.page_path))
