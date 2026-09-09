@@ -2,14 +2,15 @@ import { Fragment, useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import {
   ROLES, PERMISSION_GROUPS, PERMISSION_LABELS, ROLE_COLORS,
+  normalizeRoleSlug,
   type RoleSlug, type PermissionSlug,
 } from '@/lib/rbac'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/usePermissions'
 import { PermissionGuard } from '@/components/auth/PermissionGuard'
 import {
-  Check, X, Users, Search, Plus, Save, Edit3, Trash2,
-  Shield, RotateCwc, ChevronDown, ChevronUp,
+  Check, X, Users, Plus, Save, Edit3, Trash2,
+  Shield, ChevronDown, ChevronUp, Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -17,7 +18,6 @@ import { ConfirmDialog } from '@/components/admin/ConfirmDialog'
 import { StatusBadge, roleBadge } from '@/components/admin/StatusBadge'
 import { MetricCard } from '@/components/admin/MetricCard'
 import { Empty } from '@/components/ui/empty'
-import { Loader2 } from 'lucide-react'
 
 type Role = {
   id: string
@@ -58,41 +58,49 @@ export default function RolesPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   const loadRoles = useCallback(async () => {
-    try {
-      const { data } = await supabase.from('roles').select('*').order('slug')
-      setRoles(data ?? [])
-    } catch { /* ignore */ }
+    const { data, error } = await supabase.from('roles').select('*').order('slug')
+    if (error) {
+      toast.error(`Failed to load roles: ${error.message}`)
+      return
+    }
+    setRoles(data ?? [])
   }, [])
 
   const loadPermissions = useCallback(async () => {
-    try {
-      const { data } = await supabase.from('permissions').select('*').order('key')
-      setAllPermissions(data ?? [])
-    } catch { /* ignore */ }
+    const { data, error } = await supabase.from('permissions').select('*').order('key')
+    if (error) {
+      toast.error(`Failed to load permissions: ${error.message}`)
+      return
+    }
+    setAllPermissions(data ?? [])
   }, [])
 
   const loadRolePerms = useCallback(async () => {
-    try {
-      const { data } = await supabase.from('role_permissions').select('role_id, permission_id')
-      const map: Record<string, string[]> = {}
-      for (const rp of data ?? []) {
-        if (!map[rp.role_id]) map[rp.role_id] = []
-        map[rp.role_id].push(rp.permission_id)
-      }
-      setRolePerms(map)
-    } catch { /* ignore */ }
+    const { data, error } = await supabase.from('role_permissions').select('role_id, permission_id')
+    if (error) {
+      toast.error(`Failed to load role permissions: ${error.message}`)
+      return
+    }
+    const map: Record<string, string[]> = {}
+    for (const rp of data ?? []) {
+      if (!map[rp.role_id]) map[rp.role_id] = []
+      map[rp.role_id].push(rp.permission_id)
+    }
+    setRolePerms(map)
   }, [])
 
   const loadUserRoles = useCallback(async () => {
-    try {
-      const { data } = await supabase.from('user_roles').select('user_id, role_id')
-      const map: Record<string, string[]> = {}
-      for (const ur of data ?? []) {
-        if (!map[ur.user_id]) map[ur.user_id] = []
-        map[ur.user_id].push(ur.role_id)
-      }
-      setUserRoles(map)
-    } catch { /* ignore */ }
+    const { data, error } = await supabase.from('user_roles').select('user_id, role_id')
+    if (error) {
+      console.warn('user_roles load failed:', error.message)
+      return
+    }
+    const map: Record<string, string[]> = {}
+    for (const ur of data ?? []) {
+      if (!map[ur.user_id]) map[ur.user_id] = []
+      map[ur.user_id].push(ur.role_id)
+    }
+    setUserRoles(map)
   }, [])
 
   useEffect(() => {
@@ -120,31 +128,54 @@ export default function RolesPage() {
 
   const assignUserRole = async (userId: string, roleId: string, assign: boolean) => {
     try {
+      const role = roles.find((r) => r.id === roleId)
       if (assign) {
         const { error } = await supabase.from('user_roles').upsert(
           { user_id: userId, role_id: roleId },
-          { onConflict: 'user_id,role_id' }
+          { onConflict: 'user_id,role_id' },
         )
         if (error) throw error
-        setUserRoles(prev => ({
+
+        // Keep legacy/admin gate column in sync (source of truth for canAccessAdmin).
+        if (role?.slug) {
+          const { error: profileErr } = await supabase
+            .from('user_profiles')
+            .update({ user_role: normalizeRoleSlug(role.slug) })
+            .eq('id', userId)
+          if (profileErr) throw profileErr
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.id === userId ? { ...u, user_role: normalizeRoleSlug(role.slug) } : u,
+            ),
+          )
+        }
+
+        setUserRoles((prev) => ({
           ...prev,
-          [userId]: [...(prev[userId]?.filter(r => r !== roleId) ?? []), roleId],
+          [userId]: [...(prev[userId]?.filter((r) => r !== roleId) ?? []), roleId],
         }))
         toast.success('Role assigned to user')
       } else {
-        const { error } = await supabase.from('user_roles')
+        const { error } = await supabase
+          .from('user_roles')
           .delete()
           .eq('user_id', userId)
           .eq('role_id', roleId)
         if (error) throw error
-        setUserRoles(prev => ({
+        setUserRoles((prev) => ({
           ...prev,
-          [userId]: (prev[userId] ?? []).filter(r => r !== roleId),
+          [userId]: (prev[userId] ?? []).filter((r) => r !== roleId),
         }))
         toast.success('Role removed from user')
       }
-    } catch {
-      toast.error(assign ? 'Failed to assign role' : 'Failed to remove role')
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : assign
+            ? 'Failed to assign role'
+            : 'Failed to remove role',
+      )
     }
   }
 
@@ -159,8 +190,8 @@ export default function RolesPage() {
     setSelectedRole(role.id)
     setFormData({ name: role.name, slug: role.slug, description: role.description ?? '' })
     const currentPerms = allPermissions
-      .filter(p => rolePerms[role.id]?.includes(p.id))
-      .map(p => p.key)
+      .filter((p) => rolePerms[role.id]?.includes(p.id))
+      .map((p) => p.key)
     setAssignedPerms(new Set(currentPerms))
   }
 
@@ -172,7 +203,7 @@ export default function RolesPage() {
   }
 
   const togglePermission = (permKey: string) => {
-    setAssignedPerms(prev => {
+    setAssignedPerms((prev) => {
       const next = new Set(prev)
       if (next.has(permKey)) next.delete(permKey)
       else next.add(permKey)
@@ -180,51 +211,120 @@ export default function RolesPage() {
     })
   }
 
+  /** Toggle a single cell in the permission matrix (works for system roles too). */
+  const toggleMatrixPermission = async (role: Role, permKey: string) => {
+    if (!can('permissions.assign') && !can('roles.update') && !can('permissions.manage')) {
+      toast.error('You do not have permission to edit role permissions')
+      return
+    }
+    const perm = allPermissions.find((p) => p.key === permKey)
+    if (!perm) {
+      toast.error('Permission not found in database — run RBAC seed migration')
+      return
+    }
+    const has = rolePerms[role.id]?.includes(perm.id)
+    try {
+      if (has) {
+        const { error } = await supabase
+          .from('role_permissions')
+          .delete()
+          .eq('role_id', role.id)
+          .eq('permission_id', perm.id)
+        if (error) throw error
+        setRolePerms((prev) => ({
+          ...prev,
+          [role.id]: (prev[role.id] ?? []).filter((id) => id !== perm.id),
+        }))
+      } else {
+        const { error } = await supabase
+          .from('role_permissions')
+          .insert({ role_id: role.id, permission_id: perm.id })
+        if (error) throw error
+        setRolePerms((prev) => ({
+          ...prev,
+          [role.id]: [...(prev[role.id] ?? []), perm.id],
+        }))
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update permission')
+    }
+  }
+
   const saveRole = async () => {
+    if (
+      (editMode === 'create' && !can('roles.create')) ||
+      (editMode === 'edit' && !can('roles.update'))
+    ) {
+      toast.error('You do not have permission to save roles')
+      return
+    }
     if (!formData.name || !formData.slug) {
       toast.error('Name and slug are required')
       return
     }
     setSaving(true)
     try {
+      const editingRole = roles.find((r) => r.id === selectedRole)
+
       if (editMode === 'create') {
         const { data: newRole, error: roleError } = await supabase
           .from('roles')
-          .insert({ name: formData.name, slug: formData.slug.toLowerCase().replace(/[^a-z_]/g, ''), description: formData.description })
+          .insert({
+            name: formData.name,
+            slug: formData.slug.toLowerCase().replace(/[^a-z_]/g, ''),
+            description: formData.description,
+          })
           .select()
           .single()
         if (roleError) throw roleError
 
         if (newRole) {
-          const permIds = allPermissions.filter(p => assignedPerms.has(p.key)).map(p => p.id)
+          const permIds = allPermissions
+            .filter((p) => assignedPerms.has(p.key))
+            .map((p) => p.id)
           if (permIds.length > 0) {
             const { error: rpError } = await supabase.from('role_permissions').insert(
-              permIds.map(pid => ({ role_id: newRole.id, permission_id: pid }))
+              permIds.map((pid) => ({ role_id: newRole.id, permission_id: pid })),
             )
             if (rpError) throw rpError
           }
         }
         toast.success('Role created successfully')
       } else if (editMode === 'edit' && selectedRole) {
-        const { error: roleError } = await supabase.from('roles')
-          .update({ name: formData.name, description: formData.description })
-          .eq('id', selectedRole)
-        if (roleError) throw roleError
+        // System roles: only update permissions (DB trigger blocks roles row UPDATE).
+        if (!editingRole?.is_system) {
+          const { error: roleError } = await supabase
+            .from('roles')
+            .update({ name: formData.name, description: formData.description })
+            .eq('id', selectedRole)
+          if (roleError) throw roleError
+        }
 
-        await supabase.from('role_permissions').delete().eq('role_id', selectedRole)
-        const permIds = allPermissions.filter(p => assignedPerms.has(p.key)).map(p => p.id)
+        const { error: delError } = await supabase
+          .from('role_permissions')
+          .delete()
+          .eq('role_id', selectedRole)
+        if (delError) throw delError
+
+        const permIds = allPermissions
+          .filter((p) => assignedPerms.has(p.key))
+          .map((p) => p.id)
         if (permIds.length > 0) {
           const { error: rpError } = await supabase.from('role_permissions').insert(
-            permIds.map(pid => ({ role_id: selectedRole, permission_id: pid }))
+            permIds.map((pid) => ({ role_id: selectedRole, permission_id: pid })),
           )
           if (rpError) throw rpError
         }
-        toast.success('Role updated successfully')
+        toast.success(
+          editingRole?.is_system
+            ? 'System role permissions updated'
+            : 'Role updated successfully',
+        )
       }
       await Promise.all([loadRoles(), loadRolePerms()])
       cancelEdit()
-    } catch {
-      toast.error('Failed to save role')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save role')
     } finally {
       setSaving(false)
     }
@@ -232,15 +332,28 @@ export default function RolesPage() {
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return
+    if (!can('roles.delete')) {
+      toast.error('You do not have permission to delete roles')
+      setDeleteTarget(null)
+      return
+    }
     try {
-      await supabase.from('role_permissions').delete().eq('role_id', deleteTarget)
-      await supabase.from('user_roles').delete().eq('role_id', deleteTarget)
+      const { error: permissionError } = await supabase
+        .from('role_permissions')
+        .delete()
+        .eq('role_id', deleteTarget)
+      if (permissionError) throw permissionError
+      const { error: userRoleError } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('role_id', deleteTarget)
+      if (userRoleError) throw userRoleError
       const { error } = await supabase.from('roles').delete().eq('id', deleteTarget)
       if (error) throw error
       toast.success('Role deleted')
       await loadRoles()
-    } catch {
-      toast.error('Failed to delete role')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete role')
     } finally {
       setDeleteTarget(null)
     }
@@ -293,16 +406,25 @@ export default function RolesPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <MetricCard title="Total Roles" value={roles.length} sub="configured roles" icon={Shield} accent="blue" />
-        <MetricCard title="Total Permissions" value={totalPerms} sub="across all roles" icon={Check} accent="green" />
-        <MetricCard title="Users with Roles" value={totalUsers} sub="assigned" icon={Users} accent="gold" />
+        <MetricCard title="Total Roles" value={roles.length} subtitle="configured roles" icon={Shield} accent="blue" />
+        <MetricCard title="Total Permissions" value={totalPerms} subtitle="across all roles" icon={Check} accent="green" />
+        <MetricCard title="Users with Roles" value={totalUsers} subtitle="assigned" icon={Users} accent="gold" />
       </div>
 
       {editMode && (
         <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
           <h2 className="font-semibold text-foreground">
-            {editMode === 'create' ? 'Create New Role' : 'Edit Role'}
+            {editMode === 'create'
+              ? 'Create New Role'
+              : roles.find((r) => r.id === selectedRole)?.is_system
+                ? 'Edit System Role Permissions'
+                : 'Edit Role'}
           </h2>
+          {roles.find((r) => r.id === selectedRole)?.is_system && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              System role name/slug cannot be changed. You can update permissions below.
+            </p>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Role Name</label>
@@ -312,6 +434,7 @@ export default function RolesPage() {
                 onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="e.g. Editor"
+                disabled={editMode === 'edit' && roles.find((r) => r.id === selectedRole)?.is_system}
               />
             </div>
             <div>
@@ -333,6 +456,7 @@ export default function RolesPage() {
                 onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="Role description"
+                disabled={editMode === 'edit' && roles.find((r) => r.id === selectedRole)?.is_system}
               />
             </div>
           </div>
@@ -408,8 +532,7 @@ export default function RolesPage() {
                     <Button
                       variant="ghost" size="sm"
                       onClick={() => startEdit(role)}
-                      disabled={role.is_system}
-                      title={role.is_system ? 'System roles cannot be edited' : 'Edit role'}
+                      title={role.is_system ? 'Edit system role permissions' : 'Edit role'}
                     >
                       <Edit3 className="w-3 h-3" />
                     </Button>
@@ -497,7 +620,7 @@ export default function RolesPage() {
           <div className="px-6 py-4 border-b border-border">
             <h2 className="font-semibold text-foreground">Permission Matrix</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Click groups to expand. System roles are marked with a lock icon.
+              Click a cell to grant or revoke a permission. Works for system roles too.
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -549,12 +672,30 @@ export default function RolesPage() {
                             </td>
                             {roles.map(role => {
                               const has = perm ? rolePerms[role.id]?.includes(perm.id) : false
+                              const canEdit =
+                                can('permissions.assign') ||
+                                can('roles.update') ||
+                                can('permissions.manage')
                               return (
                                 <td key={role.id} className="text-center px-2 py-2">
-                                  {has
-                                    ? <Check className="w-4 h-4 text-green-600 mx-auto" />
-                                    : <X className="w-4 h-4 text-muted-foreground/30 mx-auto" />
-                                  }
+                                  <button
+                                    type="button"
+                                    disabled={!canEdit || !perm}
+                                    title={
+                                      canEdit
+                                        ? has
+                                          ? 'Revoke permission'
+                                          : 'Grant permission'
+                                        : 'No permission to edit'
+                                    }
+                                    onClick={() => void toggleMatrixPermission(role, permKey)}
+                                    className="mx-auto inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                                  >
+                                    {has
+                                      ? <Check className="w-4 h-4 text-green-600" />
+                                      : <X className="w-4 h-4 text-muted-foreground/30" />
+                                    }
+                                  </button>
                                 </td>
                               )
                             })}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useRef, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -35,6 +35,8 @@ import { generateUrgentRequirementWithAi } from '@/lib/ai/urgent-requirement-gen
 import { BlogContent } from '@/components/blog/BlogContent'
 import { FlagIcon } from '@/components/flag-icon'
 import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase/client'
+import { MEDIA_BUCKET } from '@/hooks/useFileManager'
 
 function getFlagEmoji(countryCode: string): string {
   try {
@@ -95,6 +97,11 @@ export default function UrgentRequirementsAdminPage() {
   const [durationDays, setDurationDays] = useState(14)
   const [expiresAt, setExpiresAt] = useState<string>('')
   const [imageUrl, setImageUrl] = useState('')
+  const [detailImageUrl, setDetailImageUrl] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [uploadTarget, setUploadTarget] = useState<'main' | 'detail' | null>(null)
+  const mainImageInputRef = useRef<HTMLInputElement>(null)
+  const detailImageInputRef = useRef<HTMLInputElement>(null)
   const [summary, setSummary] = useState('')
   const [content, setContent] = useState('')
   const [status, setStatus] = useState<'active' | 'closed'>('active')
@@ -145,6 +152,7 @@ export default function UrgentRequirementsAdminPage() {
     setDurationDays(14)
     setExpiresAt('')
     setImageUrl('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1200&q=80')
+    setDetailImageUrl('')
     setSummary('')
     setContent('')
     setStatus('active')
@@ -176,6 +184,7 @@ export default function UrgentRequirementsAdminPage() {
     }
     
     setImageUrl(req.image_url || '')
+    setDetailImageUrl(req.detail_image_url || '')
     setSummary(req.summary || '')
     setContent(req.content)
     setStatus(req.status === 'closed' || isRequirementExpired(req) ? 'closed' : 'active')
@@ -202,6 +211,7 @@ export default function UrgentRequirementsAdminPage() {
       setSalary(generated.salary)
       setExperienceRequired(generated.experience_required)
       setImageUrl(generated.image_url)
+      setDetailImageUrl('')
       setSummary(generated.summary)
       setContent(generated.content)
       setDurationDays(generated.duration_days || 14)
@@ -210,6 +220,46 @@ export default function UrgentRequirementsAdminPage() {
       toast.error(err?.message || 'Failed to generate with AI')
     } finally {
       setIsGeneratingAi(false)
+    }
+  }
+
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+    target: 'main' | 'detail',
+  ) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(file.type)) {
+      toast.error('Please select a JPG, PNG, WEBP, GIF, or AVIF image.')
+      return
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error('Image must be smaller than 20 MB.')
+      return
+    }
+
+    setUploadingImage(true)
+    setUploadTarget(target)
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `urgent-requirements/${target}-${Date.now()}-${safeName}`
+      const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, file, {
+        cacheControl: '15552000',
+        upsert: false,
+      })
+      if (error) throw error
+
+      const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path)
+      if (target === 'main') setImageUrl(data.publicUrl)
+      else setDetailImageUrl(data.publicUrl)
+      toast.success(target === 'main' ? 'Main image uploaded' : 'Detail image uploaded')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to upload cover image')
+    } finally {
+      setUploadingImage(false)
+      setUploadTarget(null)
     }
   }
 
@@ -244,6 +294,7 @@ export default function UrgentRequirementsAdminPage() {
       salary,
       experience_required: experienceRequired,
       image_url: imageUrl,
+      detail_image_url: detailImageUrl,
       summary,
       content,
       status,
@@ -794,15 +845,74 @@ export default function UrgentRequirementsAdminPage() {
                 </div>
               </div>
 
-              {/* Image URL */}
-              <div className="space-y-1">
-                <Label className="text-xs">Cover Image URL</Label>
-                <Input
-                  placeholder="https://images.unsplash.com/..."
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  className="h-9 text-xs"
-                />
+              {/* Separate listing and detail images */}
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs">Main Page Image</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Shown on the urgent openings listing card.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    placeholder="Main image URL"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                  <input
+                    ref={mainImageInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                    className="hidden"
+                    onChange={(event) => void handleImageUpload(event, 'main')}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 shrink-0 gap-1.5 text-xs"
+                    disabled={uploadingImage}
+                    onClick={() => mainImageInputRef.current?.click()}
+                  >
+                    {uploadingImage && uploadTarget === 'main' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                    {uploadingImage && uploadTarget === 'main' ? 'Uploading...' : 'Upload main'}
+                  </Button>
+                </div>
+
+                <div>
+                  <Label className="text-xs">Inside Vacancy Image</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    A separate image shown inside the vacancy details page.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    placeholder="Detail image URL"
+                    value={detailImageUrl}
+                    onChange={(e) => setDetailImageUrl(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                  <input
+                    ref={detailImageInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                    className="hidden"
+                    onChange={(event) => void handleImageUpload(event, 'detail')}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 shrink-0 gap-1.5 text-xs"
+                    disabled={uploadingImage}
+                    onClick={() => detailImageInputRef.current?.click()}
+                  >
+                    {uploadingImage && uploadTarget === 'detail' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                    {uploadingImage && uploadTarget === 'detail' ? 'Uploading...' : 'Upload detail'}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Upload an image or paste a public URL. Maximum 20 MB per image.
+                </p>
               </div>
 
               {/* Summary */}
@@ -867,6 +977,11 @@ export default function UrgentRequirementsAdminPage() {
               {imageUrl && (
                 <div className="rounded-xl overflow-hidden aspect-video max-h-52">
                   <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+              )}
+              {detailImageUrl && detailImageUrl !== imageUrl && (
+                <div className="rounded-xl overflow-hidden aspect-video max-h-52">
+                  <img src={detailImageUrl} alt="Detail preview" className="w-full h-full object-cover" />
                 </div>
               )}
 

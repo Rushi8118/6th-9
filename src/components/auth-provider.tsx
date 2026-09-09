@@ -103,34 +103,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [roles, setRoles] = useState<RoleSlug[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  const fetchProfile = useCallback(async (userId: string, userEmail: string, userMetadata?: Record<string, any>): Promise<UserProfile> => {
+  const fetchProfile = useCallback(async (userId: string, userEmail: string, userMetadata?: Record<string, any>): Promise<UserProfile | null> => {
     const metaFullName = userMetadata?.full_name || userMetadata?.name || null
     const metaAvatar = userMetadata?.avatar_url || userMetadata?.picture || null
     const metaFirstName = userMetadata?.first_name || (metaFullName ? metaFullName.split(" ")[0] : null)
     const metaLastName = userMetadata?.last_name || (metaFullName && metaFullName.includes(" ") ? metaFullName.split(" ").slice(1).join(" ") : null)
-
-    const fallbackProfile: UserProfile = {
-      id: userId,
-      email: userEmail,
-      full_name: metaFullName,
-      first_name: metaFirstName,
-      last_name: metaLastName,
-      username: userMetadata?.user_name || null,
-      phone: userMetadata?.phone || null,
-      whatsapp: userMetadata?.whatsapp || null,
-      gender: null,
-      nationality: null,
-      current_city: null,
-      current_country: null,
-      education_level: null,
-      field_of_study: null,
-      profile_photo_url: metaAvatar,
-      onboarding_complete: false,
-      user_role: "user",
-      status: "active" as const,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
 
     try {
       const { data, error } = await supabase
@@ -140,12 +117,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle()
 
       if (error) {
+        // Do NOT invent a "user" role fallback — that falsely locks admins out of /admin.
         logger.error("Error fetching user profile:", error.message)
-        return fallbackProfile
+        return null
       }
 
       if (!data) {
-        logger.warn("Profile not found in database, creating default profile.")
+        logger.warn("Profile not found in database, creating default customer profile.")
         try {
           const { data: insertedData, error: insertErr } = await supabase
             .from("user_profiles")
@@ -157,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               last_name: metaLastName,
               profile_photo_url: metaAvatar,
               status: "active",
-              user_role: "user",
+              user_role: "customer",
             })
             .select()
             .single()
@@ -165,10 +143,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!insertErr && insertedData) {
             return insertedData as UserProfile
           }
+          logger.warn("Profile insert failed:", insertErr?.message)
         } catch (insertErr) {
           logger.warn("Profile insert failed:", insertErr)
         }
-        return fallbackProfile
+        return null
       }
 
       // If existing profile is missing photo or name but Google has it, update on the fly
@@ -179,15 +158,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!data.profile_photo_url && metaAvatar) updates.profile_photo_url = metaAvatar
           await supabase.from("user_profiles").update(updates).eq("id", userId)
           return { ...data, ...updates } as UserProfile
-        } catch (e) {
-          // ignore
+        } catch {
+          // ignore enrichment errors
         }
       }
 
       return data as UserProfile
     } catch (err) {
       logger.error("Unhandled error fetching profile:", err)
-      return fallbackProfile
+      return null
     }
   }, [])
 
@@ -198,8 +177,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const task = (async () => {
       try {
         const userProfile = await fetchProfile(currentUser.id, currentUser.email ?? "", currentUser.user_metadata)
-        setProfile(userProfile)
-        setRoles([normalizeRoleSlug(userProfile.user_role)])
+        if (userProfile) {
+          setProfile(userProfile)
+          setRoles([normalizeRoleSlug(userProfile.user_role)])
+        } else {
+          // Keep prior profile if refetch failed mid-session; otherwise leave null.
+          setProfile((prev) => (prev?.id === currentUser.id ? prev : null))
+        }
 
         const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T) =>
           Promise.race([
@@ -215,11 +199,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPermissions(perms)
         if (userRoles.length > 0) {
           setRoles(userRoles)
+        } else if (userProfile) {
+          setRoles([normalizeRoleSlug(userProfile.user_role)])
         }
       } catch (err) {
         logger.error("Error loading user context:", err)
         setPermissions([])
-        setRoles([])
       } finally {
         profileLoadInflight.delete(currentUser.id)
       }
@@ -324,9 +309,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      setIsLoading(true)
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
+        setIsLoading(false)
         logger.error("signIn failed:", error)
+        // Record failed login attempts for the admin access log (best-effort).
+        void import("@/lib/site-visit-tracker").then(({ markFailedLogin }) => {
+          void markFailedLogin(email)
+        })
         const msg = error.message || "Sign-in failed"
         if (/failed to fetch|network|resolve/i.test(msg)) {
           return {
@@ -339,12 +330,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         return { data: null, error: { message: msg } }
       }
-      if (data.user?.id) {
-        const { markUserLogin } = await import("@/lib/site-visit-tracker")
-        void markUserLogin(data.user.id)
+
+      if (data.user) {
+        const { data: accountProfile } = await supabase
+          .from('user_profiles')
+          .select('status')
+          .eq('id', data.user.id)
+          .maybeSingle()
+        if (accountProfile?.status === 'suspended' || accountProfile?.status === 'deleted') {
+          await supabase.auth.signOut()
+          setIsLoading(false)
+          return {
+            data: null,
+            error: { message: 'This account is suspended or deleted. Contact an administrator.' },
+          }
+        }
+        setUser(data.user)
+        // Await profile/roles so LoginPage redirects with correct admin access.
+        await loadUserContext(data.user)
+        void import("@/lib/site-visit-tracker").then(({ markUserLogin }) => {
+          void markUserLogin(data.user!.id)
+        })
       }
+      setIsLoading(false)
       return { data, error: null }
     } catch (err: unknown) {
+      setIsLoading(false)
       logger.error("Unexpected signIn error:", err)
       const message = err instanceof Error ? err.message : "Unexpected sign-in error"
       if (/failed to fetch|network|invalid or missing|placeholder/i.test(message)) {
@@ -358,7 +369,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return { data: null, error: { message } }
     }
-  }, [])
+  }, [loadUserContext])
 
   const signUp = useCallback(async (email: string, password: string, fullName: string) => {
     const { data, error } = await supabase.auth.signUp({
@@ -407,36 +418,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
+    // Capture id before clearing storage so we can write a logout interaction.
+    const loggingOutUserId = user?.id
     try {
-      // First sign out from Supabase
+      if (loggingOutUserId) {
+        const { markUserLogout } = await import("@/lib/site-visit-tracker")
+        await markUserLogout(loggingOutUserId)
+      }
+
       const { error } = await supabase.auth.signOut()
       if (error) {
         logger.error("Supabase signOut error:", error)
       }
-      
-      // Always clear local state regardless of Supabase response
-      setUser(null)
-      setProfile(null)
-      setPermissions([])
-      setRoles([])
-      setIsLoading(false) // Ensure loading is false after logout
-      sessionStorage.clear()
-      localStorage.clear() // Also clear localStorage since Supabase uses it
-      
-      toast.success("Successfully logged out.")
-    } catch (err: unknown) {
-      logger.error("Unexpected signOut error:", err)
-      
-      // Force clear state even if there's an error
+
       setUser(null)
       setProfile(null)
       setPermissions([])
       setRoles([])
       setIsLoading(false)
-      sessionStorage.clear()
-      localStorage.clear()
+
+      // Only clear known app keys — never wipe entire localStorage (breaks other apps/tabs).
+      try {
+        localStorage.removeItem("svo_visit_session_id")
+        sessionStorage.removeItem("svo_last_tracked_path")
+      } catch {
+        // ignore
+      }
+
+      toast.success("Successfully logged out.")
+    } catch (err: unknown) {
+      logger.error("Unexpected signOut error:", err)
+      setUser(null)
+      setProfile(null)
+      setPermissions([])
+      setRoles([])
+      setIsLoading(false)
     }
-  }, [])
+  }, [user?.id])
 
   const updateProfile = useCallback(async (updates: Partial<UserProfile>) => {
     if (!user) return { data: null, error: new Error("Not authenticated") }
@@ -458,8 +476,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Merge DB RPC permissions with role defaults so admin UI still works when
   // get_my_permissions is missing, empty, or times out.
   const effectivePermissions = Array.from(
-    new Set([...permissions, ...getPermissionsForRole(roleSlug)]),
+    new Set([
+      ...permissions,
+      ...getPermissionsForRole(roleSlug),
+      ...roles.flatMap((r) => getPermissionsForRole(r)),
+    ]),
   )
+
+  const accessFromProfile = checkCanAccessAdmin(profile?.user_role)
+  const accessFromRoles = roles.some((r) => checkCanAccessAdmin(r))
 
   const value: AuthContextType = {
     user,
@@ -469,10 +494,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     roleSlug,
     roles,
     permissions: effectivePermissions,
-    isSuperAdmin: checkSuperAdmin(profile?.user_role),
-    isAdmin: isAdminOrAbove(profile?.user_role),
-    isStaffOrAbove: checkStaffOrAbove(profile?.user_role),
-    canAccessAdmin: checkCanAccessAdmin(profile?.user_role),
+    isSuperAdmin: checkSuperAdmin(profile?.user_role) || roles.some((r) => checkSuperAdmin(r)),
+    isAdmin: isAdminOrAbove(profile?.user_role) || roles.some((r) => isAdminOrAbove(r)),
+    isStaffOrAbove: checkStaffOrAbove(profile?.user_role) || roles.some((r) => checkStaffOrAbove(r)),
+    canAccessAdmin: accessFromProfile || accessFromRoles,
     hasPermission: (permission: PermissionSlug) =>
       checkHasPermission(effectivePermissions, permission),
     hasRole: (role: RoleSlug) => roles.includes(role) || roleSlug === role,

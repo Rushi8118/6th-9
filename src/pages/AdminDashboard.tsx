@@ -15,9 +15,7 @@ import { useAdminAccessStats } from '@/hooks/useAdminAccessStats'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase/client'
 import { formatDistanceToNow } from 'date-fns'
-import { useState } from 'react'
-
-type ActivityFilter = 'all' | 'visits' | 'applications' | 'logins'
+import { AccessLogPanel } from '@/components/admin/AccessLogPanel'
 
 function StatCard({
   title,
@@ -51,7 +49,6 @@ function StatCard({
 }
 
 export default function AdminDashboard() {
-  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all')
   const access = useAdminAccessStats()
   const stats = access.data
 
@@ -104,8 +101,10 @@ export default function AdminDashboard() {
 
       {access.isError && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Could not load access logs. Open the public website once to start collecting visits, then
-          refresh. Optional: run <code>supabase/FIX_ACCESS_LOGS.sql</code> if selects are blocked.
+          Could not load access summary stats. Open the public website once to start collecting
+          visits, then refresh. Apply{' '}
+          <code>supabase/migrations/20260908042941_interactions_access_log_filters.sql</code> (or{' '}
+          <code>FIX_ACCESS_LOGS.sql</code>) so selects are limited to Super Admin / Admin.
         </div>
       )}
 
@@ -178,119 +177,10 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">Recent website activity</h2>
-            <span className="text-xs text-muted-foreground">Live access log</span>
-          </div>
-          <div className="mb-3 flex gap-1">
-            {(['all', 'visits', 'applications', 'logins'] as ActivityFilter[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setActivityFilter(f)}
-                className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
-                  activityFilter === f
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-              >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
-          </div>
-          <div className="max-h-[500px] space-y-2 overflow-y-auto scroll-smooth scrollbar-thin">
-            {(() => {
-              const isEmpty =
-                (activityFilter === 'visits' || activityFilter === 'all') && (stats?.recentVisits || []).length === 0 && (stats?.recentApplications || []).length === 0 ||
-                activityFilter === 'applications' && (stats?.recentApplications || []).length === 0 ||
-                activityFilter === 'logins' && (stats?.recentLogins || []).length === 0
-              return isEmpty
-            })() ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No activity yet. Open the public site (homepage, blog, guides) to generate logs.
-              </p>
-            ) : (
-              <>
-                {(activityFilter === 'all' || activityFilter === 'visits')
-                  ? stats?.recentVisits.map((row) => (
-                      <div
-                        key={row.id}
-                        className={`rounded-xl border px-3 py-2.5 ${
-                          row.event_type === 'application_submitted'
-                            ? 'border-amber-200/70 bg-amber-50/20'
-                            : 'border-border/70 bg-muted/20'
-                        }`}
-                      >
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span
-                            className={`rounded-full px-2 py-0.5 font-semibold uppercase ${
-                              row.event_type === 'login'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : row.event_type === 'signup'
-                                  ? 'bg-violet-100 text-violet-800'
-                                  : row.event_type === 'application_submitted'
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-sky-100 text-sky-800'
-                            }`}
-                          >
-                            {row.event_type === 'application_submitted'
-                              ? 'Application Submitted'
-                              : row.event_type.replace('_', ' ')}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {formatDistanceToNow(new Date(row.created_at), { addSuffix: true })}
-                          </span>
-                          {row.device_type && (
-                            <span className="text-muted-foreground">· {row.device_type}</span>
-                          )}
-                          {row.browser && <span className="text-muted-foreground">· {row.browser}</span>}
-                        </div>
-                        <p className="mt-1 truncate text-sm font-medium text-foreground">
-                          {row.page_path || '—'}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {row.user_email
-                            ? `${row.user_name || 'User'} · ${row.user_email}`
-                            : 'Guest visitor'}
-                          {row.referrer ? ` · from ${row.referrer}` : ''}
-                        </p>
-                      </div>
-                    ))
-                  : null}
-                {(activityFilter === 'all' || activityFilter === 'applications')
-                  ? stats?.recentApplications.map((app) => (
-                      <div
-                        key={app.id}
-                        className="rounded-xl border border-amber-200/70 bg-amber-50/20 px-3 py-2.5"
-                      >
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold uppercase text-amber-800">
-                            Application Submitted
-                          </span>
-                          <span className="text-muted-foreground">
-                            {formatDistanceToNow(new Date(app.created_at), { addSuffix: true })}
-                          </span>
-                        </div>
-                        <p className="mt-1 truncate text-sm font-medium text-foreground">
-                          {app.application_type
-                            ? `${app.application_type.charAt(0).toUpperCase() + app.application_type.slice(1)} Application`
-                            : 'Application Submitted'}
-                          {app.application_id ? ` · ${app.application_id}` : ''}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {app.user_email
-                            ? `${app.user_name || 'User'} · ${app.user_email}`
-                            : 'Guest applicant'}
-                        </p>
-                      </div>
-                    ))
-                  : null}
-              </>
-            )}
-          </div>
-        </section>
+      {/* Full advanced filter access log (URL-synced) */}
+      <AccessLogPanel />
 
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground">Recent login users</h2>
@@ -329,28 +219,28 @@ export default function AdminDashboard() {
             )}
           </div>
         </section>
-      </div>
 
-      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-foreground">Top public pages (7 days)</h2>
-        {(stats?.topPages || []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">No page data yet.</p>
-        ) : (
-          <div className="grid gap-2 md:grid-cols-2">
-            {stats?.topPages.map((page) => (
-              <div
-                key={page.path}
-                className="flex items-center justify-between rounded-xl border border-border/60 px-3 py-2"
-              >
-                <span className="truncate text-sm text-foreground">{page.path}</span>
-                <span className="ml-3 shrink-0 text-sm font-semibold text-muted-foreground">
-                  {page.views}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold text-foreground">Top public pages (7 days)</h2>
+          {(stats?.topPages || []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">No page data yet.</p>
+          ) : (
+            <div className="grid gap-2">
+              {stats?.topPages.map((page) => (
+                <div
+                  key={page.path}
+                  className="flex items-center justify-between rounded-xl border border-border/60 px-3 py-2"
+                >
+                  <span className="truncate text-sm text-foreground">{page.path}</span>
+                  <span className="ml-3 shrink-0 text-sm font-semibold text-muted-foreground">
+                    {page.views}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
         <h2 className="mb-3 text-lg font-semibold text-foreground">Quick actions</h2>

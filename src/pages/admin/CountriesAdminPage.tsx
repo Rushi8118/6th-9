@@ -275,7 +275,6 @@ export default function CountriesAdminPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-lg font-bold text-foreground truncate">{country.name}</h3>
                           <Badge variant="secondary" className="text-[10px] font-mono uppercase px-1.5 py-0.2 shrink-0">
-                            {country.code}
                           </Badge>
                           {country.has_work_visa && (
                             <Badge variant="outline" className="text-[9px] gap-1 border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400 dark:border-amber-500/20 dark:bg-amber-500/10">

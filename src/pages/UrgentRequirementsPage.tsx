@@ -12,16 +12,6 @@ import { Input } from '@/components/ui/input'
 import { useUrgentRequirements, getRemainingDays, isRequirementExpired } from '@/hooks/useUrgentRequirements'
 import { FlagIcon } from '@/components/flag-icon'
 
-function getFlagEmoji(countryCode: string): string {
-  try {
-    return countryCode
-      .toUpperCase()
-      .replace(/./g, (char) => String.fromCodePoint(127397 + char.charCodeAt(0)))
-  } catch {
-    return '🌍'
-  }
-}
-
 export default function UrgentRequirementsPage() {
   const { requirements, isLoading } = useUrgentRequirements()
   const [search, setSearch] = useState('')
@@ -97,8 +87,6 @@ export default function UrgentRequirementsPage() {
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {countries.map((c) => {
                   const countryCode = countriesWithCodes.get(c)
-                  const flagEmoji = countryCode ? getFlagEmoji(countryCode) : '🌍'
-                  
                   return (
                     <button
                       key={c}
@@ -110,7 +98,11 @@ export default function UrgentRequirementsPage() {
                           : 'bg-card hover:bg-muted/60 text-muted-foreground border border-border/60 hover:border-primary/30'
                       }`}
                     >
-                      {c === 'all' ? '🌍 All Countries' : `${flagEmoji} ${c}`}
+                      {c === 'all' ? (
+                        <><span aria-hidden="true">🌐</span> All Countries</>
+                      ) : (
+                        <><FlagIcon country={c} code={countryCode} className="mr-1.5 inline-block align-[-0.1em]" /> {c}</>
+                      )}
                     </button>
                   )
                 })}
@@ -182,11 +174,11 @@ export default function UrgentRequirementsPage() {
 
                       {/* Image Thumbnail if available */}
                       {req.image_url && (
-                        <div className="relative rounded-xl overflow-hidden aspect-[16/9] mb-4 border border-border/50">
+                        <div className="relative rounded-xl overflow-hidden aspect-[16/9] mb-4 border border-border/50 bg-muted/30">
                           <img
                             src={req.image_url}
                             alt={req.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
                             loading="lazy"
                           />
                           <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-background/90 backdrop-blur-md text-[10px] font-semibold text-primary">

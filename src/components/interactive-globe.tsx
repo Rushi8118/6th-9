@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useMemo } from "react"
 import * as THREE from "three"
+import { FlagIcon } from '@/components/flag-icon'
 
 interface InteractiveGlobeProps {
   className?: string
@@ -451,8 +452,7 @@ export function InteractiveGlobe({
                       : "border border-sky-400/40 bg-slate-900/80 text-slate-100 hover:border-sky-300"
                   }`}
                 >
-                  <span>{dest.flag}</span>
-                  <span>{dest.short}</span>
+                  <FlagIcon country={dest.name} className="text-sm" />
                 </div>
               </div>
             )

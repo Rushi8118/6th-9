@@ -86,6 +86,7 @@ const AutomationsPage = lazy(() => import('./pages/admin/AutomationsPage'))
 const EmailTemplatesPage = lazy(() => import('./pages/admin/EmailTemplatesPage'))
 const FileManagerPage = lazy(() => import('./pages/admin/FileManagerPage'))
 const AdminUsersPage = lazy(() => import('./pages/admin/UsersPage'))
+const AdminUserDetailPage = lazy(() => import('./pages/admin/UserDetailPage'))
 const AdminBlogPage = lazy(() => import('./pages/admin/BlogPage'))
 const AdminApplicationsPage = lazy(() => import('./pages/admin/AdminApplicationsPage'))
 const AdminSettingsPage = lazy(() => import('./pages/admin/SettingsPage'))
@@ -182,6 +183,7 @@ function AppRoutes() {
         <Route index element={<AdminDashboard />} />
         <Route path="realtime" element={<RealtimeDashboardPage />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="users/:id" element={<AdminUserDetailPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="applications" element={<AdminApplicationsPage />} />
         <Route path="urgent-requirements" element={<UrgentRequirementsAdminPage />} />

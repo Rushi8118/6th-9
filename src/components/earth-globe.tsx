@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from "framer-motion"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { FlagIcon } from '@/components/flag-icon'
 
 interface EarthGlobeProps {
   size?: number
@@ -365,7 +366,7 @@ export function EarthGlobe({ size = 380, className = "" }: EarthGlobeProps) {
                     className="mr-2 whitespace-nowrap rounded-full border border-primary/40 bg-card/90 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-foreground shadow-sm backdrop-blur-sm"
                     style={{ animation: "label-bob 3s ease-in-out infinite" }}
                   >
-                    {p.short ?? p.name}
+                    <FlagIcon country={p.name} className="text-sm" />
                   </span>
                 )}
                 <span
@@ -377,7 +378,7 @@ export function EarthGlobe({ size = 380, className = "" }: EarthGlobeProps) {
                     className="ml-2 whitespace-nowrap rounded-full border border-primary/40 bg-card/90 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-foreground shadow-sm backdrop-blur-sm"
                     style={{ animation: "label-bob 3s ease-in-out infinite" }}
                   >
-                    {p.short ?? p.name}
+                    <FlagIcon country={p.name} className="text-sm" />
                   </span>
                 )}
               </div>

@@ -44,18 +44,33 @@ export function DataTable<T extends Record<string, any>>({
   const filtered = useMemo(() => {
     if (!search) return data
     const q = search.toLowerCase()
-    return data.filter(row =>
-      columns.some(col =>
-        String(col.accessor(row)).toLowerCase().includes(q),
-      ),
+    return data.filter((row) =>
+      columns.some((col) => {
+        // Prefer raw field for search so React node accessors still match text.
+        const raw = row[col.key]
+        const rawText =
+          raw != null && typeof raw !== 'object' ? String(raw) : ''
+        const rendered = String(col.accessor(row) ?? '')
+        return (
+          rawText.toLowerCase().includes(q) ||
+          (rendered !== '[object Object]' && rendered.toLowerCase().includes(q))
+        )
+      }),
     )
   }, [data, search, columns])
 
   const sorted = useMemo(() => {
     if (!sortKey) return filtered
     return [...filtered].sort((a, b) => {
-      const aVal = String(columns.find(c => c.key === sortKey)?.accessor(a) ?? '')
-      const bVal = String(columns.find(c => c.key === sortKey)?.accessor(b) ?? '')
+      const col = columns.find((c) => c.key === sortKey)
+      const aRaw = a[sortKey]
+      const bRaw = b[sortKey]
+      const aVal = String(
+        aRaw != null && typeof aRaw !== 'object' ? aRaw : (col?.accessor(a) ?? ''),
+      )
+      const bVal = String(
+        bRaw != null && typeof bRaw !== 'object' ? bRaw : (col?.accessor(b) ?? ''),
+      )
       return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
     })
   }, [filtered, sortKey, sortDir, columns])

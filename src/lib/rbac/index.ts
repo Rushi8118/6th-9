@@ -427,6 +427,49 @@ export function isStaffOrAbove(role: string | null | undefined): boolean {
   return level >= ROLE_HIERARCHY['counselor'] || level >= ROLE_HIERARCHY['hr']
 }
 
+/** End-user (non-staff) role slugs used by access-log filters. */
+const END_USER_ROLE_SLUGS = new Set<RoleSlug>(['customer', 'user', 'viewer'])
+
+/** Super-admin / admin role slugs (including legacy aliases). */
+const ADMIN_TIER_ROLE_SLUGS = new Set<RoleSlug>(['admin', 'super_admin', 'superadmin' as RoleSlug])
+
+/**
+ * Internal staff roles for access-log filtering.
+ * Derived from ROLE_HIERARCHY so new non-admin internal roles automatically count as Staff.
+ */
+export function getStaffRoleSlugs(): RoleSlug[] {
+  return (Object.keys(ROLE_HIERARCHY) as RoleSlug[]).filter(
+    (slug) => !END_USER_ROLE_SLUGS.has(slug) && !ADMIN_TIER_ROLE_SLUGS.has(slug),
+  )
+}
+
+export function getEndUserRoleSlugs(): RoleSlug[] {
+  return (Object.keys(ROLE_HIERARCHY) as RoleSlug[]).filter((slug) =>
+    END_USER_ROLE_SLUGS.has(slug),
+  )
+}
+
+export function getSuperAdminRoleSlugs(): string[] {
+  return ['super_admin', 'superadmin']
+}
+
+export function getAdministratorRoleSlugs(): string[] {
+  return ['admin']
+}
+
+/** Map a stored user_role into an access-log role filter bucket. */
+export function getAccessLogRoleGroup(
+  role: string | null | undefined,
+  userId: string | null | undefined,
+): 'super_admin' | 'admin' | 'staff' | 'user' | 'guest' {
+  if (!userId) return 'guest'
+  const slug = normalizeRoleSlug(role)
+  if (slug === 'super_admin' || (slug as string) === 'superadmin') return 'super_admin'
+  if (slug === 'admin') return 'admin'
+  if (END_USER_ROLE_SLUGS.has(slug)) return 'user'
+  return 'staff'
+}
+
 export function canAccessAdmin(role: string | null | undefined): boolean {
   const slug = normalizeRoleSlug(role)
   return slug === 'admin' || slug === 'super_admin'

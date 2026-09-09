@@ -71,7 +71,9 @@ INSERT INTO roles (name, slug, description, is_system) VALUES
   ('Accountant',   'accountant',   'Payments, invoices, transactions, refunds', TRUE),
   ('Marketing',    'marketing',    'Blogs, SEO, landing pages, campaigns, social media', TRUE),
   ('Customer',     'customer',     'Own profile, submit applications, upload documents, track status, payments', TRUE)
-ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;
+-- Existing system roles are protected by prevent_system_role_modification().
+-- Do not issue an UPDATE on conflict so this migration remains safely rerunnable.
+ON CONFLICT (slug) DO NOTHING;
 
 -- ═══════════════════════════════════════════════════════════
 -- SEED PERMISSIONS
@@ -315,7 +317,7 @@ BEGIN
       'customer'
     ) AS slug
   )
-  SELECT DISTINCT p.key
+  SELECT DISTINCT p.key::TEXT
   FROM permissions p
   WHERE EXISTS (
     -- From user_roles (new RBAC system)

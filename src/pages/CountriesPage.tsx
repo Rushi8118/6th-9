@@ -141,7 +141,6 @@ export default function CountriesPage() {
                         </div>
 
                         <span className="rounded-full bg-secondary/80 px-2.5 py-1 text-[10px] font-mono font-semibold uppercase text-secondary-foreground">
-                          {country.code}
                         </span>
                       </div>
 

@@ -13,6 +13,7 @@ export type UrgentRequirement = {
   salary: string
   experience_required?: string
   image_url?: string
+  detail_image_url?: string
   summary: string
   content: string
   status: 'active' | 'closed' | 'expired'
@@ -32,6 +33,7 @@ export type UrgentRequirementInput = {
   salary: string
   experience_required?: string
   image_url?: string
+  detail_image_url?: string
   summary: string
   content: string
   status?: 'active' | 'closed' | 'expired'
@@ -681,6 +683,7 @@ export function useAdminUrgentRequirements() {
         salary: input.salary,
         experience_required: input.experience_required || '',
         image_url: input.image_url || 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&auto=format&fit=crop&q=80',
+        detail_image_url: input.detail_image_url || input.image_url || existing?.detail_image_url || '',
         summary: input.summary || '',
         content: input.content,
         status: input.status || 'active',
@@ -707,6 +710,7 @@ export function useAdminUrgentRequirements() {
         salary: fullItem.salary,
         experience_required: fullItem.experience_required,
         image_url: fullItem.image_url,
+        detail_image_url: fullItem.detail_image_url,
         summary: fullItem.summary,
         content: fullItem.content,
         status: fullItem.status,

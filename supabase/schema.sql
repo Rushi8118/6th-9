@@ -290,7 +290,7 @@
 --     user_id         UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
 --     session_id      VARCHAR(100),
     
---     event_type      VARCHAR(50) NOT NULL CHECK (event_type IN ('page_view','country_click','program_click','globe_interaction','search','consultation_book','application_start','document_download','share','signup','login')),
+--     event_type      VARCHAR(50) NOT NULL CHECK (event_type IN ('page_view','country_click','program_click','globe_interaction','search','consultation_book','application_start','application_submitted','application_status_change','document_download','share','signup','login','logout','failed_login','password_change')),
     
 --     -- What was interacted with
 --     entity_type     VARCHAR(30),  -- 'country', 'visa_program', 'page', 'globe'
@@ -868,7 +868,7 @@ CREATE TABLE interactions (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id         UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
     session_id      VARCHAR(100),
-    event_type      VARCHAR(50) NOT NULL CHECK (event_type IN ('page_view','country_click','program_click','globe_interaction','search','consultation_book','application_start','document_download','share','signup','login')),
+    event_type      VARCHAR(50) NOT NULL CHECK (event_type IN ('page_view','country_click','program_click','globe_interaction','search','consultation_book','application_start','application_submitted','application_status_change','document_download','share','signup','login','logout','failed_login','password_change')),
     entity_type     VARCHAR(30),
     entity_id       UUID,
     page_path       VARCHAR(500),

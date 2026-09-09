@@ -17,16 +17,7 @@ import { useUrgentRequirementBySlug, getRemainingDays, isRequirementExpired } fr
 import { supabase } from '@/lib/supabase/client'
 import { NAP } from '@/lib/seo/site'
 import { toast } from 'sonner'
-
-function getFlagEmoji(countryCode: string): string {
-  try {
-    return countryCode
-      .toUpperCase()
-      .replace(/./g, (char) => String.fromCodePoint(127397 + char.charCodeAt(0)))
-  } catch {
-    return '🌍'
-  }
-}
+import { FlagIcon } from '@/components/flag-icon'
 
 export default function UrgentRequirementDetailPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -186,7 +177,7 @@ export default function UrgentRequirementDetailPage() {
 
               {/* Country */}
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/40 border border-border/70 text-xs font-medium text-foreground">
-                <span className="text-sm">{getFlagEmoji(requirement.country_code)}</span>
+                <FlagIcon country={requirement.country} code={requirement.country_code} className="text-sm" />
                 {requirement.country}
               </span>
 
@@ -262,15 +253,14 @@ export default function UrgentRequirementDetailPage() {
             {/* Left 8 cols: Cover Image & Structured Markdown Content */}
             <div className="lg:col-span-8 space-y-6">
               {/* Cover Image */}
-              {requirement.image_url && (
-                <div className="relative rounded-2xl overflow-hidden border border-border/60 aspect-video sm:aspect-[21/9] shadow-md">
+              {(requirement.detail_image_url || requirement.image_url) && (
+                <div className="relative rounded-2xl overflow-hidden border border-border/60 bg-muted/30 shadow-md">
                   <img
-                    src={requirement.image_url}
+                    src={requirement.detail_image_url || requirement.image_url}
                     alt={requirement.title}
-                    className="w-full h-full object-cover"
+                    className="block h-auto max-h-[75vh] w-full object-contain"
                     loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
                 </div>
               )}
 

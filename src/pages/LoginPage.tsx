@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useNavigate, Navigate, useSearchParams } from "react-router-dom"
 import { Helmet } from "react-helmet-async"
 import { motion } from "framer-motion"
@@ -16,7 +16,7 @@ import { SiteFooter } from "@/components/site-footer"
 import { toast } from "sonner"
 
 export default function LoginPage() {
-  const { signIn, signInWithGoogle, user } = useAuth()
+  const { signIn, signInWithGoogle, user, profile, isLoading, canAccessAdmin } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -25,11 +25,17 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const redirectTo = searchParams.get("redirect") || "/"
+  const redirectParam = searchParams.get("redirect")
 
-  // If user is already logged in, redirect them
-  if (user) {
-    return <Navigate to={redirectTo} replace />
+  const postLoginPath = () => {
+    if (redirectParam) return redirectParam
+    if (canAccessAdmin) return "/admin"
+    return "/dashboard"
+  }
+
+  // If already logged in (and profile hydrated), send them onward.
+  if (user && !isLoading && profile) {
+    return <Navigate to={postLoginPath()} replace />
   }
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -38,19 +44,25 @@ export default function LoginPage() {
       toast.error("Please enter both email and password.")
       return
     }
+    if (!agreeTerms) {
+      toast.error("Please agree to the Terms & Conditions to continue.")
+      return
+    }
 
     setLoading(true)
     try {
       const { error } = await signIn(email, password)
       if (error) {
-        toast.error((error as any)?.message || "Failed to log in.")
-      } else {
-        toast.success("Welcome back!", {
-          description: "Successfully logged in to your account.",
-        })
-        navigate(redirectTo)
+        toast.error((error as { message?: string })?.message || "Failed to log in.")
+        return
       }
-    } catch (err: any) {
+      toast.success("Welcome back!", {
+        description: "Successfully logged in to your account.",
+      })
+      // AuthProvider hydrates the profile before resolving signIn, so choose the
+      // destination from the current role instead of briefly routing to /dashboard.
+      navigate(redirectParam || (canAccessAdmin ? "/admin" : "/dashboard"), { replace: true })
+    } catch (err: unknown) {
       toast.error("An unexpected error occurred.")
       console.error(err)
     } finally {
@@ -58,24 +70,37 @@ export default function LoginPage() {
     }
   }
 
+  // After successful password login, AuthProvider updates canAccessAdmin — redirect once ready.
+  useEffect(() => {
+    if (!loading && user && !isLoading && profile) {
+      navigate(postLoginPath(), { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, profile, isLoading, canAccessAdmin])
+
   const handleGoogleLogin = async () => {
+    if (!agreeTerms) {
+      toast.error("Please agree to the Terms & Conditions to continue.")
+      return
+    }
     setGoogleLoading(true)
     try {
       const { error } = await signInWithGoogle()
       if (error) {
-        if ((error as any)?.message?.includes("popup_closed")) {
+        const msg = (error as { message?: string })?.message || ""
+        if (msg.includes("popup_closed")) {
           toast.error("Sign-in cancelled.", {
             description: "You closed the popup before completing sign-in.",
           })
-        } else if ((error as any)?.message?.includes("access_denied")) {
+        } else if (msg.includes("access_denied")) {
           toast.error("Access denied.", {
             description: "You denied the permission request.",
           })
         } else {
-          toast.error((error as any)?.message || "Google sign-in failed.")
+          toast.error(msg || "Google sign-in failed.")
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error("An unexpected error occurred during Google Sign-In.")
       console.error(err)
     } finally {
@@ -95,7 +120,6 @@ export default function LoginPage() {
       </Helmet>
       <SiteHeader />
       <main className="relative min-h-screen bg-background flex flex-col justify-center py-20 px-4 md:px-6 premium-page">
-        {/* Soft background light wash */}
         <div
           aria-hidden="true"
           className="absolute inset-x-0 top-1/4 -z-10 h-[500px] w-full"
@@ -201,10 +225,10 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                disabled={loading || googleLoading}
+                disabled={loading || googleLoading || isLoading}
                 className="w-full rounded-full bg-primary hover:bg-primary/95 text-primary-foreground btn-glow mt-2"
               >
-                {loading ? (
+                {loading || (user && isLoading) ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Signing in...
@@ -246,4 +270,3 @@ export default function LoginPage() {
     </>
   )
 }
-
