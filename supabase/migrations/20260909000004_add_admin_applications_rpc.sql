@@ -1,0 +1,118 @@
+-- Allow authorized staff to load the combined applications view used by the admin page.
+CREATE OR REPLACE FUNCTION public.get_all_applications(
+  p_page INTEGER DEFAULT 1,
+  p_page_size INTEGER DEFAULT 50
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+DECLARE
+  result JSONB;
+  v_page INTEGER := GREATEST(COALESCE(p_page, 1), 1);
+  v_page_size INTEGER := LEAST(GREATEST(COALESCE(p_page_size, 50), 1), 100);
+  v_offset INTEGER;
+BEGIN
+  IF NOT user_has_permission(ARRAY['applications.read', 'applications.process']) THEN
+    RAISE EXCEPTION 'insufficient privileges';
+  END IF;
+
+  v_offset := (v_page - 1) * v_page_size;
+
+  SELECT COALESCE(jsonb_agg(row_data), '[]'::JSONB)
+  INTO result
+  FROM (
+    SELECT jsonb_build_object(
+      'id', a.id,
+      'application_id', a.application_id,
+      'user_id', a.user_id,
+      'visa_program_id', a.visa_program_id,
+      'country_id', a.country_id,
+      'country_name', c.name,
+      'country_flag_emoji', c.flag_emoji,
+      'application_type', a.application_type,
+      'status', a.status,
+      'priority', a.priority,
+      'personal_info', a.personal_info,
+      'education_history', a.education_history,
+      'work_history', a.work_history,
+      'document_checklist', a.document_checklist,
+      'submitted_at', a.submitted_at,
+      'review_started_at', a.review_started_at,
+      'decision_at', a.decision_at,
+      'estimated_completion', a.estimated_completion,
+      'assigned_consultant', a.assigned_consultant,
+      'consultant_notes', a.consultant_notes,
+      'meta', COALESCE(a.meta, '{}'::JSONB),
+      'metadata', COALESCE(a.meta, '{}'::JSONB),
+      'created_at', a.created_at,
+      'updated_at', a.updated_at,
+      'user_profile_full_name', up.full_name,
+      'user_profile_email', up.email
+      ,'assigned_officer_name', officer.full_name
+      ,'assigned_officer_email', officer.email
+    ) AS row_data,
+    a.created_at AS sort_date
+    FROM applications AS a
+    LEFT JOIN user_profiles AS up ON up.id = a.user_id
+    LEFT JOIN countries AS c ON c.id = a.country_id
+    LEFT JOIN user_profiles AS officer ON officer.id = a.assigned_consultant
+
+    UNION ALL
+
+    SELECT jsonb_build_object(
+      'id', c.id,
+      'application_id', 'ENQ-' || LEFT(REPLACE(c.id::TEXT, '-', ''), 8),
+      'user_id', c.user_id,
+      'visa_program_id', NULL,
+      'country_id', NULL,
+      'application_type', CASE
+        WHEN c.consultation_type = 'study_visa' THEN 'study'
+        WHEN c.consultation_type = 'work_visa' THEN 'work'
+        ELSE 'business'
+      END,
+      'status', 'submitted',
+      'priority', 'normal',
+      'personal_info', c.user_notes,
+      'education_history', '[]'::JSONB,
+      'work_history', '[]'::JSONB,
+      'document_checklist', '{}'::JSONB,
+      'submitted_at', c.created_at,
+      'review_started_at', NULL,
+      'decision_at', NULL,
+      'estimated_completion', NULL,
+      'assigned_consultant', c.assigned_consultant,
+      'consultant_notes', c.consultant_notes,
+      'meta', jsonb_build_object(
+        'source', 'consultations',
+        'consultation_type', c.consultation_type,
+        'preferred_country', c.preferred_country,
+        'visa_category', c.visa_category
+      ),
+      'metadata', jsonb_build_object(
+        'source', 'consultations',
+        'preferred_country', c.preferred_country,
+        'visa_category', c.visa_category
+      ),
+      'created_at', c.created_at,
+      'updated_at', c.updated_at,
+      'user_profile_full_name', up.full_name,
+      'user_profile_email', up.email
+    ) AS row_data,
+    c.created_at AS sort_date
+    FROM consultations AS c
+    LEFT JOIN user_profiles AS up ON up.id = c.user_id
+
+    ORDER BY sort_date DESC
+    LIMIT v_page_size
+    OFFSET v_offset
+  ) AS rows;
+
+  RETURN result;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_all_applications(INTEGER, INTEGER) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_all_applications(INTEGER, INTEGER) TO authenticated;
