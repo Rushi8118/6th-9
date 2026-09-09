@@ -13,7 +13,7 @@ const updateConfig = {
   },
   applications: {
     table: "applications",
-    fields: ["status", "priority", "consultant_notes"],
+    fields: ["status", "priority", "consultant_notes", "assigned_consultant"],
   },
   countries: {
     table: "countries",

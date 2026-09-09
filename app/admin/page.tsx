@@ -1,6 +1,7 @@
 "use client"
 
 import { type ElementType, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import {
   Briefcase,
   Calendar,
@@ -15,6 +16,14 @@ import {
   ShieldCheck,
   UserRound,
   Users,
+  ArrowRight,
+  Send,
+  Archive,
+  AlertTriangle,
+  RotateCw,
+  UserPlus,
+  XCircle,
+  FileUp,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,6 +57,7 @@ type AdminData = {
   countries: any[]
   programs: any[]
   notifications: any[]
+  officers: any[]
 }
 
 const emptyData: AdminData = {
@@ -58,6 +68,7 @@ const emptyData: AdminData = {
   countries: [],
   programs: [],
   notifications: [],
+  officers: [],
 }
 
 const consultationStatuses = ["requested", "scheduled", "confirmed", "completed", "cancelled", "no_show"]
@@ -128,17 +139,47 @@ export default function AdminPage() {
 
   async function loadData() {
     setLoading(true)
-    const response = await fetch("/api/admin/data/", { cache: "no-store" })
-    const payload = await response.json().catch(() => ({}))
-    setLoading(false)
+    try {
+      const response = await fetch("/api/admin/data/", { cache: "no-store" })
+      const payload = await response.json().catch(() => ({}))
 
-    if (!response.ok) {
-      toast.error(payload.error || "Failed to load admin data")
-      if (response.status === 401) setAuthenticated(false)
-      return
+      if (!response.ok) {
+        toast.error(payload.error || "Failed to load admin data")
+        if (response.status === 401) setAuthenticated(false)
+        setLoading(false)
+        return
+      }
+
+      try {
+        const officersRes = await fetch("/api/admin/officers/")
+        const officersData = await officersRes.json().catch(() => ({ officers: [] }))
+        setData({ ...payload, officers: officersData.officers || [] })
+      } catch {
+        setData(payload)
+      }
+    } catch {
+      toast.error("Failed to load admin data")
+    } finally {
+      setLoading(false)
     }
+  }
 
-    setData(payload)
+  async function manageApplication(applicationId: string, action: string, reason?: string) {
+    try {
+      const response = await fetch(`/api/applications/${applicationId}/action/`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, reason }),
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result.error || "Action failed")
+      }
+      toast.success(`Application ${action} successfully`)
+      await loadData()
+    } catch (err: any) {
+      toast.error(err?.message || "Action failed")
+    }
   }
 
   async function login(event: FormEvent<HTMLFormElement>) {
@@ -172,21 +213,26 @@ export default function AdminPage() {
     const key = `${resource}:${id}:${Object.keys(updates).join(",")}`
     setSavingKey(key)
 
-    const response = await fetch("/api/admin/update/", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ resource, id, updates }),
-    })
-    const payload = await response.json().catch(() => ({}))
-    setSavingKey("")
+    try {
+      const response = await fetch("/api/admin/update/", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ resource, id, updates }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      setSavingKey("")
 
-    if (!response.ok) {
-      toast.error(payload.error || "Update failed")
-      return
+      if (!response.ok) {
+        toast.error(payload.error || "Update failed")
+        return
+      }
+
+      toast.success("Updated")
+      await loadData()
+    } catch (err: any) {
+      setSavingKey("")
+      toast.error(err?.message || "Update failed")
     }
-
-    toast.success("Updated")
-    await loadData()
   }
 
   if (checkingSession) {
@@ -472,7 +518,9 @@ export default function AdminPage() {
                     <TableHead>Country / Program</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Priority</TableHead>
-                    <TableHead>Admin Notes</TableHead>
+                    <TableHead>Officer</TableHead>
+                    <TableHead>Actions</TableHead>
+                    <TableHead>Notes</TableHead>
                     <TableHead>Created</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -480,7 +528,9 @@ export default function AdminPage() {
                   {data.applications.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <p className="font-medium">{item.application_id || item.id.slice(0, 8)}</p>
+                        <Link href={`/applications/${item.id}`}>
+                          <p className="font-medium text-primary underline">{item.application_id || item.id.slice(0, 8)}</p>
+                        </Link>
                         <Badge variant="outline">{item.application_type}</Badge>
                       </TableCell>
                       <TableCell>
@@ -492,35 +542,103 @@ export default function AdminPage() {
                         <p className="text-xs text-muted-foreground">{item.program?.name || ""}</p>
                       </TableCell>
                       <TableCell>
-                        <InlineSelect
+                        <select
                           value={item.status}
-                          options={applicationStatuses}
-                          disabled={savingKey.startsWith(`applications:${item.id}`)}
-                          onChange={(status) => updateResource("applications", item.id, { status })}
-                        />
+                          onChange={(e) => updateResource("applications", item.id, { status: e.target.value })}
+                          className="rounded border border-border bg-background px-1 py-0.5 text-sm"
+                        >
+                          {applicationStatuses.map((s) => (
+                            <option key={s} value={s}>{s.replace("_", " ")}</option>
+                          ))}
+                        </select>
                       </TableCell>
                       <TableCell>
-                        <InlineSelect
+                        <select
                           value={item.priority || "normal"}
-                          options={priorities}
-                          disabled={savingKey.startsWith(`applications:${item.id}`)}
-                          onChange={(priority) => updateResource("applications", item.id, { priority })}
-                        />
+                          onChange={(e) => updateResource("applications", item.id, { priority: e.target.value })}
+                          className="rounded border border-border bg-background px-1 py-0.5 text-sm"
+                        >
+                          {priorities.map((p) => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </select>
                       </TableCell>
                       <TableCell>
-                        <TextSave
+                        <select
+                          value={item.assigned_consultant || ""}
+                          onChange={(e) => updateResource("applications", item.id, { assigned_consultant: e.target.value || null })}
+                          className="rounded border border-border bg-background px-1 py-0.5 text-sm"
+                        >
+                          <option value="">Unassigned</option>
+                          {data.officers.map((officer: any) => (
+                            <option key={officer.id} value={officer.id}>{officer.full_name}</option>
+                          ))}
+                        </select>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => manageApplication(item.id, "approve")}
+                            disabled={item.status === "approved"}
+                            className="h-7 px-1.5 text-xs"
+                            title="Approve"
+                          >
+                            <CheckCircle2 className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => manageApplication(item.id, "reject", "Application rejected by admin")}
+                            disabled={item.status === "rejected"}
+                            className="h-7 px-1.5 text-xs"
+                            title="Reject"
+                          >
+                            <XCircle className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => manageApplication(item.id, "return_for_corrections", "Returned for corrections")}
+                            className="h-7 px-1.5 text-xs"
+                            title="Return for corrections"
+                          >
+                            <RotateCw className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => manageApplication(item.id, "request_documents")}
+                            className="h-7 px-1.5 text-xs"
+                            title="Request documents"
+                          >
+                            <FileUp className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => manageApplication(item.id, "archive")}
+                            className="h-7 px-1.5 text-xs"
+                            title="Archive"
+                          >
+                            <Archive className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <textarea
                           value={item.consultant_notes || ""}
-                          placeholder="Internal application notes"
-                          disabled={savingKey.startsWith(`applications:${item.id}`)}
-                          onSave={(consultant_notes) =>
-                            updateResource("applications", item.id, { consultant_notes })
-                          }
+                          onChange={(e) => updateResource("applications", item.id, { consultant_notes: e.target.value })}
+                          className="w-full rounded border border-border bg-background px-1 py-0.5 text-sm"
+                          rows={2}
+                          placeholder="Internal notes"
                         />
                       </TableCell>
                       <TableCell>{formatDate(item.created_at)}</TableCell>
                     </TableRow>
                   ))}
-                  {data.applications.length === 0 && <EmptyRow colSpan={7} label="No applications found." />}
+                  {data.applications.length === 0 && <EmptyRow colSpan={9} label="No applications found." />}
                 </TableBody>
               </Table>
             </AdminSection>

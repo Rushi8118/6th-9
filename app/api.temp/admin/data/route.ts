@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         .limit(100),
       supabase
         .from("applications")
-        .select("id,application_id,user_id,application_type,status,priority,country_id,visa_program_id,consultant_notes,created_at,updated_at")
+        .select("id,application_id,user_id,application_type,status,priority,country_id,visa_program_id,personal_info,education_history,work_history,document_checklist,consultant_notes,created_at,updated_at")
         .order("created_at", { ascending: false })
         .limit(100),
       supabase
