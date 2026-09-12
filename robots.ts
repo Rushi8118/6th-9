@@ -1,5 +1,4 @@
 import type { MetadataRoute } from "next"
-
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://siddhivinayakoverseas.com"
 
 export default function robots(): MetadataRoute.Robots {
@@ -8,32 +7,37 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/dashboard", "/profile", "/applications", "/consultations", "/saved", "/admin", "/auth/"],
-      },
-      {
-        userAgent: "Googlebot",
-        allow: "/",
-        disallow: ["/auth/", "/dashboard", "/profile", "/admin"],
+        disallow: [
+          "/dashboard",
+          "/dashboard/",
+          "/admin",
+          "/admin/",
+          "/auth/",
+          "/login",
+          "/register",
+          "/forgot-password",
+          "/reset-password",
+        ],
       },
       {
         userAgent: "GPTBot",
-        disallow: "/",
-      },
-      {
-        userAgent: "Google-Extended",
-        disallow: "/",
+        allow: "/",
       },
       {
         userAgent: "ClaudeBot",
-        disallow: "/",
+        allow: "/",
+      },
+      {
+        userAgent: "Google-Extended",
+        allow: "/",
       },
       {
         userAgent: "Bytespider",
-        disallow: "/",
+        allow: "/",
       },
       {
         userAgent: "CCBot",
-        disallow: "/",
+        allow: "/",
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

@@ -14,6 +14,7 @@ function GlobePoster() {
           alt="Realistic 3D Earth"
           width={640}
           height={640}
+          fetchPriority="high"
           decoding="async"
           className="h-full w-full object-cover scale-150"
         />
