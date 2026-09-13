@@ -1,302 +1,181 @@
-# Siddhivinayak Overseas - Project Setup & Deployment Guide
+# Siddhivinayak Overseas — Project Setup & Deployment Guide
 
 ## Project Overview
 
-This is a Next.js-based SaaS platform for visa consultancy, built with:
-- **Frontend**: Next.js 16+, React, TypeScript
-- **Backend**: Supabase (PostgreSQL, Auth, API)
-- **Styling**: Tailwind CSS with shadcn/ui components
-- **Database**: PostgreSQL (via Supabase)
+This is a **Vite + React + TypeScript** single-page app, built with:
+- **Frontend**: Vite, React 18, TypeScript, React Router
+- **Backend**: Supabase (PostgreSQL, Auth, Storage, Edge Functions)
+- **Styling**: Tailwind CSS with shadcn/ui + Radix UI components
+- **Hosting**: Static build (`dist/`) uploaded to **Hostinger** (Apache), routed via `public/.htaccess`
 
-## Current Status
-
-✅ **Frontend**: Fully implemented with all pages and components  
-✅ **Build**: Passing without errors  
-✅ **Database Schema**: Complete with migrations  
-⚠️ **Database Deployment**: Schema needs to be applied to Supabase  
-⚠️ **Seed Data**: Sample data needs to be loaded  
+> An earlier, unrelated Next.js prototype (`app/`, `next.config.mjs`) previously
+> lived in this repo alongside the real Vite app. It was never wired into
+> `package.json` (no `next` dependency, `npm run build` never touched it) and
+> has been removed. The live site is, and has been, the Vite app under `src/`.
 
 ## Setup Instructions
 
-### 1. Clone & Install Dependencies
+### 1. Install dependencies
 
 ```bash
-cd "Kimi_Agent_SaaS Platform Upgrade Plan/app"
 npm install
-# or
-pnpm install
 ```
 
-### 2. Configure Supabase
+### 2. Configure environment variables
 
-1. Create a Supabase project at https://supabase.com
-2. Get your project URL and anon key from the dashboard
-3. Copy `.env.example` to `.env.local` and fill in:
+Copy `.env.example` to `.env` and fill in:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_key
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_SITE_URL=https://siddhivinayakoverseas.com
+
+# Optional — activates GA4 tracking + the cookie consent banner.
+# Leave blank to ship with analytics fully disabled.
+VITE_GA_MEASUREMENT_ID=
 ```
 
-### 3. Apply Database Schema
+Server-only secrets (`SUPABASE_SERVICE_ROLE_KEY`, email provider credentials, etc.)
+belong in **Supabase Edge Function secrets** (`supabase secrets set ...`), never in
+this `.env` file — anything prefixed `VITE_` is bundled into the public client build.
 
-1. Go to Supabase Dashboard → SQL Editor
-2. Create a new query and paste the contents of `supabase/schema.sql`
-3. Run the query to create all tables, indexes, and policies
-4. Create a new query and paste `supabase/seed.sql` to load sample data
+### 3. Apply the database schema
 
-Alternatively, use Supabase CLI:
+Migrations live in `supabase/migrations/`. Apply with the Supabase CLI:
 
 ```bash
+supabase link --project-ref <your-project-ref>
 supabase db push
 ```
 
-### 4. Configure RLS (Row-Level Security) Policies
+Deploy Edge Functions (e.g. the admin email sender):
 
-The schema includes RLS policies for:
-- **Public Data**: Countries, visa programs, blog posts, FAQs (read-only for authenticated users)
-- **User Data**: User profiles, applications, consultations (read/write own data only)
-- **Admin Access**: Full access to all tables
+```bash
+supabase functions deploy admin-user-email
+supabase functions deploy send-welcome-email
+```
 
-Verify in Supabase Dashboard → Authentication → Policies
+## Running the project
 
-## Running the Project
-
-### Development Server
+### Development server
 
 ```bash
 npm run dev
-# Server runs on http://localhost:3000
+# http://localhost:5173 (default Vite port)
 ```
 
-### Production Build
+### Production build
 
 ```bash
 npm run build
-npm start
 ```
 
-## Project Structure
+This runs three steps in order:
+1. `scripts/generate-sitemap.mjs` — syncs `public/sitemap.xml` with currently
+   published blog posts, countries, and active urgent requirements from
+   Supabase (requires `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` to be set;
+   otherwise it warns and leaves the sitemap untouched).
+2. `vite build` — outputs the static site to `dist/`.
+3. `scripts/prerender.mjs` — uses Playwright to pre-render ~40 public SEO
+   routes to static HTML inside `dist/`, so crawlers and social-share
+   scrapers get fully-rendered content without executing JavaScript.
+
+`npm run build:only` skips the sitemap sync and prerender steps if you just
+want a fast Vite build for local testing.
+
+## Deploying to Hostinger
+
+Hostinger shared hosting serves static files over Apache — there is no
+Node.js runtime for the app itself (Supabase Edge Functions run on
+Supabase's own infrastructure, not on Hostinger).
+
+1. Run `npm run build` locally (or in CI) with production env vars set.
+2. Upload the **entire contents of `dist/`** (not the `dist` folder itself —
+   its *contents*) to your Hostinger `public_html/` directory, via:
+   - Hostinger's File Manager (zip `dist/*`, upload, extract in `public_html/`), or
+   - FTP/SFTP (credentials from hPanel → Files → FTP Accounts), or
+   - Git-based deployment if configured in hPanel.
+3. Confirm `.htaccess` was uploaded (`public/.htaccess` is copied into
+   `dist/.htaccess` by Vite automatically — it must land in `public_html/`
+   alongside `index.html`). Without it, direct navigation to any route other
+   than `/` will 404, since this is a client-side-routed SPA.
+4. Confirm HTTPS is active in hPanel (Hostinger issues a free SSL
+   certificate) — `Strict-Transport-Security` in `.htaccess` assumes HTTPS is
+   already enforced.
+5. Re-run `npm run build` and re-upload whenever content changes — this is a
+   static build, so there is no live server to restart, but stale files in
+   `public_html/` will keep serving until overwritten.
+
+### What `.htaccess` (in `public/`, shipped to `dist/`) actually does
+
+- Rewrites all non-file, non-directory requests to `/index.html` so React
+  Router can handle client-side routing.
+- Enables Brotli/Gzip compression.
+- Sets long-lived caching for hashed static assets, short caching for HTML.
+- Sets security headers: HSTS, X-Content-Type-Options, X-Frame-Options,
+  Referrer-Policy, Permissions-Policy, and Content-Security-Policy.
+
+There is no `vercel.json` or `netlify.toml` in this repo — those platforms
+are not used. If the site is ever migrated off Hostinger to a platform with
+its own routing/headers config, that config needs to be written fresh for
+the new host; `public/.htaccess` only applies to Apache-based hosting.
+
+## Project structure (actual, as deployed)
 
 ```
-app/
-├── app/                    # App router pages (Next.js 13+)
-│   ├── layout.tsx          # Root layout
-│   ├── page.tsx            # Home page
-│   ├── about/              # About page
-│   ├── contact/            # Contact form page
-│   ├── login/              # Login page
-│   ├── register/           # Sign up page
-│   ├── forgot-password/    # Password reset
-│   ├── terms/              # Terms & conditions
-│   ├── privacy/            # Privacy policy
-│   └── [other pages]/
-├── auth/                   # Authentication routes
-│   ├── callback/           # OAuth callback
-│   ├── login/              # Alt login page
-│   ├── register/           # Alt register page
-│   └── reset-password/     # Password reset link
-├── countries/              # Country pages (dynamic)
-│   ├── page.tsx            # Countries listing
-│   └── [slug]/             # Country details
-│       └── programs/       # Visa programs per country
-├── dashboard/              # User dashboard
-├── components/             # Reusable React components
-│   └── ui/                 # shadcn/ui components
-├── hooks/                  # Custom React hooks
-│   ├── use-auth.ts         # Authentication hook
-│   ├── use-countries.ts    # Countries data hook
-│   └── use-toast.ts        # Toast notifications
-├── lib/                    # Utility functions
-│   ├── supabase/
-│   │   ├── client.ts       # Supabase client (browser)
-│   │   └── server.ts       # Supabase client (server)
-│   ├── database.types.ts   # Type definitions from Supabase
-│   └── utils.ts            # Helper functions
-├── middleware.ts           # Next.js middleware for auth
-└── supabase/               # Database
-    ├── schema.sql          # Database schema & RLS policies
-    └── seed.sql            # Sample data
+src/
+├── pages/              # Route-level page components (React Router)
+│   ├── admin/           # /admin/* — internal admin panel
+│   └── *.tsx             # Public + authenticated routes
+├── components/          # Reusable UI, including components/ui (shadcn)
+├── hooks/               # Data-fetching and app hooks (react-query based)
+├── lib/
+│   ├── supabase/         # Browser Supabase client
+│   ├── seo/               # SeoHead component, schema.ts, site.ts (NAP/constants)
+│   └── ga.ts              # Consent-aware GA4 loader
+├── content/              # Static content data (destinations, guides, FAQs)
+└── App.tsx               # Route table
+
+supabase/
+├── migrations/           # SQL schema migrations
+└── functions/             # Edge Functions (service-role email sending, RBAC)
+
+public/
+├── .htaccess              # Apache SPA rewrite + headers (→ copied to dist/)
+├── robots.txt
+└── sitemap.xml             # Static entries + a generated dynamic block
+
+scripts/
+├── generate-sitemap.mjs    # Syncs dynamic sitemap entries from Supabase
+└── prerender.mjs            # Playwright-based static HTML prerender
 ```
-
-## Key Features Implemented
-
-### Authentication
-- Email/password signup and login
-- Google OAuth integration
-- Password reset flow
-- Auth state management with hooks
-- Secure session handling via Supabase
-
-### Pages & Components
-- **Home Page**: Hero section with CTAs
-- **Countries Page**: Browse visa destinations with details
-- **Country Details**: Visa programs, FAQs, cost of living
-- **Visa Program Details**: Requirements, documents, timeline
-- **Dashboard**: User profile, saved places, applications
-- **Contact Form**: Lead capture with validation
-- **About, Services, Reviews**: Information pages
-
-### UI Components
-- Navigation header with auth status
-- Hero sections with animations
-- Card layouts for countries/programs
-- Modal dialogs
-- Form inputs with validation
-- Toast notifications (Sonner)
-- Responsive design (mobile-first)
-
-### Database Tables
-1. **countries** - Destination countries with metadata
-2. **visa_programs** - Available visa types per country
-3. **user_profiles** - User information and preferences
-4. **applications** - Visa application tracking
-5. **consultations** - Booked consultation sessions
-6. **saved_places** - User bookmarks
-7. **interactions** - Analytics events
-8. **blog_posts** - SEO content
-9. **notifications** - User notifications
-10. **country_faqs** - Country-specific FAQs
-
-## Remaining Incomplete Items
-
-### Frontend
-- ✅ All pages created and linked
-- ✅ Authentication flow implemented
-- ✅ Components built
-- ⚠️ Contact form email integration (needs backend)
-- ⚠️ Application tracking (UI ready, needs database backend)
-- ⚠️ Consultation booking (UI ready, needs calendar integration)
-
-### Backend/Database
-- ✅ Schema defined
-- ✅ RLS policies configured
-- ⚠️ **CRITICAL**: Schema must be applied to Supabase
-- ⚠️ **CRITICAL**: Seed data must be loaded
-- ⚠️ Email sending service (SendGrid/Resend)
-- ⚠️ Payment processing (Razorpay/Stripe)
-- ⚠️ File upload storage (Supabase Storage)
-
-### Additional Services Needed
-- Email service for notifications and password resets
-- Payment gateway for visa application fees
-- File storage for document uploads
-- Analytics service
-- Email templates for notifications
-
-## Deployment Steps
-
-### 1. Prepare for Production
-
-```bash
-# Set environment variables in deployment platform
-NEXT_PUBLIC_SUPABASE_URL=production_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=production_key
-SUPABASE_SERVICE_ROLE_KEY=production_service_key
-NEXT_PUBLIC_SITE_URL=https://yourdomain.com
-```
-
-### 2. Deploy to Vercel (Recommended)
-
-```bash
-# Connect your GitHub repo to Vercel
-# https://vercel.com/new
-
-# Or deploy via CLI
-npm i -g vercel
-vercel
-```
-
-### 3. Deploy to Other Platforms
-
-**Docker**:
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
-**Railway, Render, or Fly.io**: Follow their Next.js deployment guides
-
-## Important Notes
-
-1. **Database Setup is Critical**: The app won't work without applying the schema and loading seed data to Supabase
-2. **Environment Variables**: Must be set correctly for auth and database to work
-3. **RLS Policies**: Ensure they're enabled for data security
-4. **Middleware**: Currently uses deprecated `middleware.ts` - works but should be migrated to proxy
-5. **Static Build**: Removed static export to allow API routes and dynamic auth
-
-## Testing
-
-### Test Authentication Flow
-1. Go to http://localhost:3000/register
-2. Create a test account
-3. Verify email (check Supabase Auth)
-4. Login at http://localhost:3000/login
-5. Should redirect to /dashboard
-
-### Test Database Connection
-1. Add this to any page to verify connection:
-```typescript
-import { createClient } from '@/lib/supabase/server'
-const supabase = await createClient()
-const { data } = await supabase.from('countries').select('*').limit(1)
-console.log(data) // Should return country data
-```
-
-### Test Pages
-- `/` - Home page
-- `/countries` - Countries list (requires database)
-- `/dashboard` - User dashboard (requires login)
-- `/contact` - Contact form
-- `/login` - Login page
-- `/register` - Sign up page
-- `/forgot-password` - Password reset
-- `/terms` - Terms of service
-- `/privacy` - Privacy policy
 
 ## Troubleshooting
 
-### Pages show "No data" or 404
-**Cause**: Database schema not applied or seed data not loaded
-**Fix**: Apply `schema.sql` and `seed.sql` to Supabase
+### Routes 404 on direct load (e.g. reloading `/study-in-uk`)
+**Cause**: `.htaccess` wasn't uploaded, or Hostinger's Apache config doesn't
+have `mod_rewrite` enabled for the account.
+**Fix**: Confirm `.htaccess` exists in `public_html/` (it's a hidden file —
+enable "show hidden files" in File Manager) and that mod_rewrite is on
+(standard on Hostinger shared hosting).
 
-### Authentication not working
-**Cause**: Missing environment variables
-**Fix**: Verify `.env.local` has correct Supabase credentials
+### New blog/country/urgent-requirement pages missing from the sitemap
+**Cause**: The site wasn't rebuilt after the content was published in the
+admin panel — this is a static build, so `public/sitemap.xml` only reflects
+what existed in Supabase at the last `npm run build`.
+**Fix**: Re-run `npm run build` and re-upload `dist/` to pick up new
+published content.
 
-### Images not loading
-**Cause**: Unoptimized image handling for static export
-**Fix**: Currently configured for unoptimized images (works on all hosts)
+### Analytics events not appearing anywhere
+**Cause**: `VITE_GA_MEASUREMENT_ID` isn't set at build time, or the visitor
+hasn't accepted the cookie consent banner yet.
+**Fix**: Set the real GA4 Measurement ID in the build environment and
+rebuild; verify in GA4 DebugView after accepting the consent banner.
 
-### Build failing
-**Cause**: TypeScript errors
-**Fix**: Errors are currently ignored (`ignoreBuildErrors: true`) - check browser console
-
-## Next Steps
-
-1. ✅ **Apply database schema** (CRITICAL)
-2. ✅ **Load seed data** (CRITICAL)  
-3. ✅ **Test authentication flow**
-4. Integrate email service (SendGrid/Resend)
-5. Add payment processing
-6. Set up file uploads
-7. Configure analytics
-8. Deploy to production
-9. Set up CI/CD pipeline
-10. Monitor and optimize
-
-## Support
-
-For issues or questions:
-1. Check Supabase docs: https://supabase.com/docs
-2. Check Next.js docs: https://nextjs.org/docs
-3. Review the code comments for implementation details
-4. Check `.env.local` configuration
+### Build failing on `scripts/generate-sitemap.mjs`
+**Cause**: Missing/invalid Supabase env vars, or a Supabase table query
+failing (e.g. RLS blocking anon reads on `countries`/`blog_posts`/
+`urgent_requirements`).
+**Fix**: The script logs a warning per failing query and continues — it
+never fails the build. Check the build log for `[sitemap]` warnings and fix
+the underlying Supabase env var or RLS policy.
