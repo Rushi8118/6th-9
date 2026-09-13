@@ -67,6 +67,16 @@ export function InteractiveGlobe({
     const container = containerRef.current
     if (!mount || !container) return
 
+    // Respect the visitor's OS-level motion preference: skip automatic
+    // auto-rotation, cloud drift, and comet-arc animation. Drag/zoom (user
+    // initiated) still works.
+    const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
+    let prefersReducedMotion = reduceMotionQuery.matches
+    const onMotionPreferenceChange = (e: MediaQueryListEvent) => {
+      prefersReducedMotion = e.matches
+    }
+    reduceMotionQuery.addEventListener("change", onMotionPreferenceChange)
+
     const width = mount.clientWidth || size
     const height = mount.clientHeight || size
 
@@ -293,30 +303,34 @@ export function InteractiveGlobe({
 
       frameId = requestAnimationFrame(animate)
 
-      // Damping & Auto-rotation
+      // Damping & Auto-rotation (auto-rotation skipped under reduced motion)
       if (!isDragging) {
         velX *= 0.94
         velY *= 0.94
         globeGroup.rotation.y += velX
         globeGroup.rotation.x = Math.max(-0.8, Math.min(0.8, globeGroup.rotation.x + velY))
 
-        if (Math.abs(velX) < 0.0001 && !activeHoverRef.current) {
+        if (!prefersReducedMotion && Math.abs(velX) < 0.0001 && !activeHoverRef.current) {
           globeGroup.rotation.y += autoRotateSpeed
         }
       }
 
-      cloudMesh.rotation.y += 0.0004
+      if (!prefersReducedMotion) {
+        cloudMesh.rotation.y += 0.0004
+      }
 
       if (enableZoom) {
         camera.position.z += (targetZoom - camera.position.z) * 0.08
       }
 
-      // Animate flight arc comet particles
-      arcAnimations.forEach((arc) => {
-        arc.progress = (arc.progress + arc.speed) % 1
-        const pt = arc.curve.getPointAt(arc.progress)
-        arc.particle.position.copy(pt)
-      })
+      // Animate flight arc comet particles (skipped under reduced motion)
+      if (!prefersReducedMotion) {
+        arcAnimations.forEach((arc) => {
+          arc.progress = (arc.progress + arc.speed) % 1
+          const pt = arc.curve.getPointAt(arc.progress)
+          arc.particle.position.copy(pt)
+        })
+      }
 
       // Direct DOM Update for 2D Labels (Bypasses React setState / re-renders)
       if (showMarkers) {
@@ -391,6 +405,7 @@ export function InteractiveGlobe({
     return () => {
       if (frameId) cancelAnimationFrame(frameId)
       observer.disconnect()
+      reduceMotionQuery.removeEventListener("change", onMotionPreferenceChange)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
       ro?.disconnect()
       window.removeEventListener("resize", onResize)

@@ -1,5 +1,13 @@
 import type { DestinationContent } from './destination-types'
 
+/**
+ * NOTE: datePublished defaults to a placeholder shared across every guide.
+ * Pass a real per-guide `datePublished` (and `dateModified` on edits) once
+ * the actual authoring/review dates are known — do not leave every guide
+ * reporting the same date to search engines indefinitely.
+ */
+const PLACEHOLDER_DATE = '2026-08-25'
+
 function guide(
   input: Omit<DestinationContent, 'kind' | 'serviceType' | 'highlights' | 'processSteps'> & {
     highlights?: DestinationContent['highlights']
@@ -8,10 +16,10 @@ function guide(
   return {
     highlights: input.highlights ?? [],
     processSteps: undefined,
+    datePublished: PLACEHOLDER_DATE,
     ...input,
     kind: 'guide',
     serviceType: 'Visa guidance',
-    datePublished: '2026-08-25',
   }
 }
 

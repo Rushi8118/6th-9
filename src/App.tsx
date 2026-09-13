@@ -3,6 +3,22 @@ import { Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom'
 import { SiteVisitTracker } from './components/SiteVisitTracker'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RouteProgress } from './components/route-progress'
+import { CookieConsent } from './components/CookieConsent'
+import { initAnalytics, isAnalyticsConfigured } from './lib/ga'
+
+/** Fires a GA4 page_view on every route change (send_page_view is off at init). */
+function AnalyticsPageView() {
+  const location = useLocation()
+  useEffect(() => {
+    if (!isAnalyticsConfigured()) return
+    if (typeof (window as any).gtag !== 'function') return
+    ;(window as any).gtag('event', 'page_view', {
+      page_path: location.pathname + location.search,
+      page_location: window.location.href,
+    })
+  }, [location.pathname, location.search])
+  return null
+}
 
 // Eager-load the most-visited public pages so clicks feel instant
 import HomePage from './pages/HomePage'
@@ -203,11 +219,17 @@ function AppRoutes() {
 }
 
 function App() {
+  useEffect(() => {
+    initAnalytics()
+  }, [])
+
   return (
     <>
       <ScrollToTop />
       <RouteProgress />
       <SiteVisitTracker />
+      <AnalyticsPageView />
+      <CookieConsent />
       <Suspense fallback={<SoftFallback />}>
         <AppRoutes />
       </Suspense>
