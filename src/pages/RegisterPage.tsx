@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { GoogleSignInButton } from "@/components/GoogleSignInButton"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
+import { AuthGlobePanel } from "@/components/auth-globe-panel"
 import { getPasswordStrength } from "@/lib/validations/auth"
 import { PasswordRequirements } from "@/components/password-requirements"
 import { toast } from "sonner"
@@ -144,27 +145,39 @@ export default function RegisterPage() {
         <meta name="robots" content="noindex, follow" />
       </Helmet>
       <SiteHeader />
-      <main className="relative min-h-screen bg-background flex flex-col justify-center py-24 px-4 md:px-6 premium-page">
-        {/* Soft background light wash */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 top-1/4 -z-10 h-[500px] w-full"
-          style={{
-            background:
-              "radial-gradient(circle, oklch(0.7 0.16 84 / 0.12) 0%, transparent 65%)",
-          }}
+      <main className="relative flex min-h-screen bg-background premium-page">
+        <AuthGlobePanel
+          eyebrow="Start Your Journey"
+          title="Join thousands who trusted us with their future abroad"
+          description="Create your profile to apply for work permits, study visas, and consultations — and watch your case move across our global route network."
+          stats={[
+            { value: "15+", label: "Countries served" },
+            { value: "8k+", label: "Visas processed" },
+            { value: "24/7", label: "Case tracking" },
+          ]}
         />
 
-        <div className="mx-auto w-full max-w-md">
-          <Link
-            to="/"
-            className="group mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-            Back to Home
-          </Link>
+        <div className="relative flex flex-1 flex-col justify-center px-4 py-24 md:px-6">
+          {/* Soft background light wash */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 top-1/4 -z-10 h-[500px] w-full"
+            style={{
+              background:
+                "radial-gradient(circle, oklch(0.7 0.16 84 / 0.12) 0%, transparent 65%)",
+            }}
+          />
 
-          <motion.div
+          <div className="mx-auto w-full max-w-md">
+            <Link
+              to="/"
+              className="group mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+              Back to Home
+            </Link>
+
+            <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -349,6 +362,7 @@ export default function RegisterPage() {
               </Link>
             </p>
           </motion.div>
+          </div>
         </div>
       </main>
       <SiteFooter />

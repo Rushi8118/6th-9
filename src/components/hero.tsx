@@ -1,7 +1,8 @@
 import { Suspense, lazy, Component, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowRight, ShieldCheck, Sparkles, Radar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import StarField from '@/components/StarField'
 
 const InteractiveGlobe = lazy(() => import('@/components/interactive-globe'))
 
@@ -73,6 +74,20 @@ export function Hero() {
       id="home"
       className="relative overflow-hidden bg-background pt-24 pb-8 text-foreground sm:pt-28 md:pt-32 md:pb-10"
     >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[720px] overflow-hidden opacity-90"
+      >
+        <StarField className="opacity-60" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(circle at 78% 22%, rgba(212,175,55,0.16), transparent 55%), radial-gradient(circle at 15% 70%, rgba(56,189,248,0.10), transparent 50%)',
+          }}
+        />
+      </div>
+
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-6 px-4 md:px-6 lg:grid-cols-12 lg:gap-6">
         <div className="lg:col-span-6">
           <div
@@ -137,8 +152,16 @@ export function Hero() {
         <div className="lg:col-span-6">
           <div className="relative mx-auto w-full flex items-center justify-center">
             <div
+              aria-hidden="true"
+              className="absolute inset-0 -z-10 rounded-full blur-3xl"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(212,175,55,0.22) 0%, rgba(56,189,248,0.12) 45%, transparent 70%)',
+              }}
+            />
+            <div
               className="relative w-full overflow-visible bg-transparent"
-              style={{ height: 'clamp(340px, 46vw, 480px)' }}
+              style={{ height: 'clamp(380px, 52vw, 560px)' }}
               aria-hidden="true"
             >
               {renderGlobe ? (
@@ -162,6 +185,17 @@ export function Hero() {
                 <p className="text-[10px] uppercase font-bold tracking-wider text-primary">Fast Processing</p>
                 <p className="mt-0.5 text-base font-serif font-bold text-foreground">UK: 8 weeks</p>
                 <p className="text-[10px] text-muted-foreground">Europe / Tier 1: 5–6 mos</p>
+              </div>
+
+              <div
+                className="pointer-events-none absolute bottom-1 left-1 flex items-center gap-2 rounded-2xl border border-border/60 bg-card/85 px-3 py-2 text-foreground shadow-lg backdrop-blur-md sm:bottom-2 sm:left-2"
+                role="note"
+              >
+                <Radar className="h-4 w-4 text-primary animate-pulse" aria-hidden="true" />
+                <div>
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-primary">Live</p>
+                  <p className="text-xs font-semibold text-foreground">Route tracking active</p>
+                </div>
               </div>
             </div>
           </div>
