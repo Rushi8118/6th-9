@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { GoogleSignInButton } from "@/components/GoogleSignInButton"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
+import { AuthGlobePanel } from "@/components/auth-globe-panel"
 import { toast } from "sonner"
 
 export default function LoginPage() {
@@ -119,26 +120,38 @@ export default function LoginPage() {
         <meta name="robots" content="noindex, follow" />
       </Helmet>
       <SiteHeader />
-      <main className="relative min-h-screen bg-background flex flex-col justify-center py-20 px-4 md:px-6 premium-page">
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 top-1/4 -z-10 h-[500px] w-full"
-          style={{
-            background:
-              "radial-gradient(circle, oklch(0.7 0.16 84 / 0.12) 0%, transparent 65%)",
-          }}
+      <main className="relative flex min-h-screen bg-background premium-page">
+        <AuthGlobePanel
+          eyebrow="Global Reach"
+          title="Your journey abroad, tracked in real time"
+          description="From visa filing to landing, follow every milestone of your case across our global network of processing hubs."
+          stats={[
+            { value: "15+", label: "Countries served" },
+            { value: "8k+", label: "Visas processed" },
+            { value: "98%", label: "Success rate" },
+          ]}
         />
 
-        <div className="mx-auto w-full max-w-md">
-          <Link
-            to="/"
-            className="group mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-            Back to Home
-          </Link>
+        <div className="relative flex flex-1 flex-col justify-center px-4 py-20 md:px-6">
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 top-1/4 -z-10 h-[500px] w-full"
+            style={{
+              background:
+                "radial-gradient(circle, oklch(0.7 0.16 84 / 0.12) 0%, transparent 65%)",
+            }}
+          />
 
-          <motion.div
+          <div className="mx-auto w-full max-w-md">
+            <Link
+              to="/"
+              className="group mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+              Back to Home
+            </Link>
+
+            <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -264,6 +277,7 @@ export default function LoginPage() {
               </Link>
             </p>
           </motion.div>
+          </div>
         </div>
       </main>
       <SiteFooter />

@@ -29,3 +29,4 @@ out/
 
 # Local agent and workspace metadata
 .local/
+tsconfig.tsbuildinfo
