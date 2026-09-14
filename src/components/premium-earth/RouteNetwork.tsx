@@ -17,9 +17,14 @@ type RouteNetworkProps = {
   reducedMotion: boolean
 }
 
+/**
+ * Lifts a great-circle path off the surface — just enough to read as a flight
+ * arc without ballooning away from the planet. Longer hops rise a little
+ * higher, the way real long-haul routes do.
+ */
 function buildRouteCurve(origin: THREE.Vector3, destination: THREE.Vector3) {
   const midpoint = origin.clone().add(destination).multiplyScalar(0.5)
-  const arcHeight = EARTH_RADIUS * (1.35 + origin.distanceTo(destination) * 0.06)
+  const arcHeight = EARTH_RADIUS * (1.08 + origin.distanceTo(destination) * 0.035)
   midpoint.normalize().multiplyScalar(arcHeight)
   return new THREE.CatmullRomCurve3([origin, midpoint, destination])
 }
