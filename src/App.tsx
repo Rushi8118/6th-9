@@ -67,6 +67,11 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 
+// Premium Three.js hero/auth redesign — preview routes only, not yet linked from nav
+const PremiumHeroPage = lazy(() => import('./pages/PremiumHeroPage'))
+const PremiumLoginPage = lazy(() => import('./pages/PremiumLoginPage'))
+const PremiumRegisterPage = lazy(() => import('./pages/PremiumRegisterPage'))
+
 const DashboardLayout = lazy(() => import('./components/DashboardLayout'))
 const DashboardHome = lazy(() => import('./pages/DashboardHome'))
 const ApplicationsPage = lazy(() => import('./pages/ApplicationsPage'))
@@ -145,6 +150,9 @@ function AppRoutes() {
 
       <Route path="/login" element={<Page><LoginPage /></Page>} />
       <Route path="/register" element={<Page><RegisterPage /></Page>} />
+      <Route path="/hero-preview" element={<Page><PremiumHeroPage /></Page>} />
+      <Route path="/login-preview" element={<Page><PremiumLoginPage /></Page>} />
+      <Route path="/register-preview" element={<Page><PremiumRegisterPage /></Page>} />
       <Route path="/forgot-password" element={<Page><ForgotPasswordPage /></Page>} />
       <Route path="/reset-password" element={<Page><ResetPasswordPage /></Page>} />
       <Route path="/auth/reset-password" element={<Page><ResetPasswordPage /></Page>} />
